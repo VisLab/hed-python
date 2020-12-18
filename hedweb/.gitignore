@@ -86,6 +86,7 @@ coverage.xml
 # pycharm
 /venv/
 .idea
+./config.py
 
 # Rope
 .ropeproject
