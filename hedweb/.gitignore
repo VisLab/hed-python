@@ -62,6 +62,7 @@ var/
 .installed.cfg
 *.egg
 .idea/
+./config.py
 
 # Installer logs
 pip-log.txt
