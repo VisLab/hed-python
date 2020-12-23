@@ -344,13 +344,22 @@
          <name>Perform</name>
          <description>Carry out or accomplish an action or task or function.</description>
          <node>
+            <name>Appear</name>
+         </node>
+         <node>
             <name>Change</name>
          </node>
          <node>
             <name>Collide</name>
          </node>
          <node>
+            <name>Disappear</name>
+         </node>
+         <node>
             <name>Fill-out-survey</name>
+         </node>
+         <node>
+            <name>Halt</name>
          </node>
          <node>
             <name>Operate</name>
@@ -411,6 +420,9 @@
          </node>
          <node>
             <name>Imagine</name>
+         </node>
+         <node>
+            <name>Predict</name>
          </node>
          <node>
             <name>Read</name>
@@ -1157,69 +1169,61 @@
    <node>
       <name>Data-property</name>
       <node requireChild="true">
-         <name>Statistical-property</name>
-         <node requireChild="true">
-            <name>Accuracy</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
-         <node requireChild="true">
-            <name>Data-mean</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
-         <node requireChild="true">
-            <name>Data-median</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
-         <node requireChild="true">
-            <name>Data-minimum</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
-         <node requireChild="true">
-            <name>Data-maximum</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
-         <node requireChild="true">
-            <name>Statistical-precision</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
-         <node requireChild="true">
-            <name>Statistical-recall</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
-         <node requireChild="true">
-            <name>Standard-deviation</name>
-            <description>As a Name:Value</description>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
+         <name>Data-property-value</name>
+         <node takesValue="true">
+            <name>#</name>
          </node>
       </node>
-      <node requireChild="true">
+      <node>
+         <name>Statistical-property</name>
+         <node>
+            <name>Accuracy</name>
+         </node>
+         <node>
+            <name>Data-mean</name>
+         </node>
+         <node>
+            <name>Data-median</name>
+         </node>
+         <node>
+            <name>Data-minimum</name>
+         </node>
+         <node>
+            <name>Data-maximum</name>
+         </node>
+         <node>
+            <name>Probability</name>
+            <description>Use to specify the level of certainty about the occurrence of the event.</description>
+         </node>
+         <node>
+            <name>Statistical-precision</name>
+         </node>
+         <node>
+            <name>Statistical-recall</name>
+         </node>
+         <node>
+            <name>Standard-deviation</name>
+         </node>
+         <node>
+            <name>Uncertainty</name>
+            <description>Use to specify the level of error.</description>
+         </node>
+      </node>
+      <node>
          <name>Observational-property</name>
          <description>Manually identified data feature. Should be grouped with a label of the form AgentID_featureName</description>
-         <node takesValue="true">
-            <name>#</name>
+         <node>
+            <name>Expert-annotation</name>
+         </node>
+         <node>
+            <name>Instrument-measurement</name>
          </node>
       </node>
-      <node requireChild="true">
+      <node>
          <name>Computed-property</name>
          <description>Feature computed by tool. Should be grouped with a label of the form Toolname_propertyName</description>
-         <node takesValue="true">
-            <name>#</name>
+         <node>
+            <name>Computed-prediction</name>
          </node>
       </node>
    </node>
@@ -1253,6 +1257,24 @@
          </node>
          <node>
             <name>Top-down-attention</name>
+         </node>
+      </node>
+      <node>
+         <name>Task-effect-evidence</name>
+         <node>
+            <name>Computational-evidence</name>
+            <description>Prediction made by computer program.</description>
+         </node>
+         <node>
+            <name>External-evidence</name>
+            <description>External judgment assumed to be ground truth such as from an experiment control software or an annotator about participant actions such as answering a question, failing to answer in time, etc. Related to participant indication</description>
+         </node>
+         <node>
+            <name>Intended-effect</name>
+            <description>How the stimulus is expected to effect the participants based on the experimental design.</description>
+         </node>
+         <node>
+            <name>Behavioral-evidence</name>
          </node>
       </node>
       <node>
@@ -1293,20 +1315,6 @@
          <node>
             <name>Warning</name>
             <description>As in a warning message that you are getting too close to the shoulder in a driving task</description>
-         </node>
-      </node>
-      <node>
-         <name>Task-effect-evidence</name>
-         <node>
-            <name>External-evidence</name>
-            <description>External judgment assumed to be ground truth such as from an experiment control software or an annotator about participant actions such as answering a question, failing to answer in time, etc. Related to participant indication</description>
-         </node>
-         <node>
-            <name>Intended-effect</name>
-            <description>How the stimulus is expected to effect the participants based on the experimental design.</description>
-         </node>
-         <node>
-            <name>Behavioral-evidence</name>
          </node>
       </node>
       <node>
@@ -1392,6 +1400,12 @@
             <name>Rewarding</name>
          </node>
          <node>
+            <name>Signal-go</name>
+         </node>
+         <node>
+            <name>Signal-stop</name>
+         </node>
+         <node>
             <name>Target</name>
             <description>Something the subject is looking for</description>
          </node>
@@ -1414,14 +1428,28 @@
          <description>Informational properties.</description>
          <node requireChild="true">
             <name>Label</name>
-            <description>A string of 20 or fewer characters. Labels are used to define scopes or can be assigned to several events sharing the same characteristic (an event code).</description>
+            <description>A string of 20 or fewer characters identifying something. Labels usually refer to general classes of things while IDs refer to specific instances.</description>
+            <node takesValue="true">
+               <name>#</name>
+            </node>
+         </node>
+         <node requireChild="true">
+            <name>Label-def</name>
+            <description>A label that specifically corresponds to a Definition name and indicates that this label represents tags in an unexpanded definition.</description>
+            <node takesValue="true">
+               <name>#</name>
+            </node>
+         </node>
+         <node requireChild="true">
+            <name>Label-exp</name>
+            <description>A label that specifically corresponds to a Definition name and indicates that this label is in a group containing an expanded definition.</description>
             <node takesValue="true">
                <name>#</name>
             </node>
          </node>
          <node requireChild="true">
             <name>ID</name>
-            <description>An alphanumeric code usually used to identify particular objects.</description>
+            <description>An alphanumeric code usually used to identify a particular instance of an item.</description>
             <node takesValue="true">
                <name>#</name>
             </node>
@@ -1598,6 +1626,41 @@
             </node>
          </node>
          <node>
+            <name>Ordering-relation</name>
+            <node>
+               <name>Early-item</name>
+               <description>Indication that this item appears early in a sequence.</description>
+            </node>
+            <node>
+               <name>First-item</name>
+               <description>Indication that this is the first item in a sequence.</description>
+            </node>
+            <node>
+               <name>Next-item</name>
+               <description>Indication that this item appears immediately after the previous item in a sequence.</description>
+            </node>
+            <node>
+               <name>Later-item</name>
+               <description>Indication that this item appears later in a sequence.</description>
+            </node>
+            <node>
+               <name>Last-item</name>
+               <description>Indication that this is the last item in a sequence.</description>
+            </node>
+         </node>
+         <node>
+            <name>Quantitative-relation</name>
+            <node>
+               <name>Estimated</name>
+            </node>
+            <node>
+               <name>Approximated</name>
+            </node>
+            <node>
+               <name>Exact</name>
+            </node>
+         </node>
+         <node>
             <name>Spatiotemporal-relation</name>
             <node>
                <name>Directional-relation</name>
@@ -1702,10 +1765,6 @@
                   <name>Close-to</name>
                </node>
                <node>
-                  <name>Distance-from</name>
-                  <description>Should be grouped with an item from which the distance is measured. The resulting group will usually be grouped with an actual Distance or Angle value.</description>
-               </node>
-               <node>
                   <name>Edge-of</name>
                </node>
                <node>
@@ -1782,10 +1841,13 @@
                   <description>Irregular changes in time</description>
                </node>
                <node>
-                  <name>Repetitive</name>
+                  <name>Fractal</name>
                </node>
                <node>
-                  <name>Stochastic</name>
+                  <name>Random</name>
+               </node>
+               <node>
+                  <name>Repetitive</name>
                </node>
                <node>
                   <name>Sudden</name>
@@ -1846,13 +1908,6 @@
                <name>#</name>
             </node>
          </node>
-         <node>
-            <name>Probability</name>
-            <description>Use to specify the level of certainty about the occurrence of the event.</description>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
          <node requireChild="true">
             <name>Ratio</name>
             <node takesValue="true">
@@ -1866,17 +1921,17 @@
                <name>#</name>
             </node>
          </node>
-         <node requireChild="true">
-            <name>Uncertainty</name>
-            <node takesValue="true">
-               <name>#</name>
-            </node>
-         </node>
       </node>
       <node extensionAllowed="true">
          <name>Categorical</name>
-         <node>
+         <node relatedTag="Normal">
+            <name>Abnormal</name>
+         </node>
+         <node relatedTag="None">
             <name>All</name>
+         </node>
+         <node relatedTag="Symmetric">
+            <name>Asymmetric</name>
          </node>
          <node relatedTag="Incongruent">
             <name>Congruent</name>
@@ -1884,82 +1939,97 @@
          <node relatedTag="Unconstrained">
             <name>Constrained</name>
          </node>
-         <node>
+         <node relatedTag="Incorrect">
             <name>Correct</name>
          </node>
-         <node>
+         <node relatedTag="Shallow">
             <name>Deep</name>
          </node>
-         <node>
+         <node relatedTag="Ordered">
+            <name>Disordered</name>
+         </node>
+         <node relatedTag="True">
             <name>False</name>
          </node>
-         <node>
+         <node relatedTag="Unfamiliar">
+            <name>Familiar</name>
+         </node>
+         <node relatedTag="Medium">
             <name>High</name>
          </node>
-         <node>
+         <node relatedTag="Congruent">
             <name>Incongruent</name>
          </node>
-         <node>
+         <node relatedTag="Correct">
             <name>Incorrect</name>
          </node>
-         <node>
+         <node relatedTag="Valid">
             <name>Invalid</name>
          </node>
-         <node>
+         <node relatedTag="Voluntary">
+            <name>Involuntary</name>
+         </node>
+         <node relatedTag="Supraliminal">
             <name>Liminal</name>
          </node>
-         <node>
+         <node relatedTag="High">
             <name>Low</name>
          </node>
          <node>
             <name>Masked</name>
             <description>Ability to perceive influenced by presence of another stimulus</description>
          </node>
-         <node>
+         <node relatedTag="High">
             <name>Medium</name>
          </node>
-         <node>
+         <node relatedTag="Some">
             <name>None</name>
          </node>
-         <node>
+         <node relatedTag="Abnormal">
             <name>Normal</name>
          </node>
-         <node>
+         <node relatedTag="Positive">
             <name>Negative</name>
          </node>
-         <node>
+         <node relatedTag="Disordered">
+            <name>Ordered</name>
+         </node>
+         <node relatedTag="Negative">
             <name>Positive</name>
          </node>
-         <node>
+         <node relatedTag="Deep">
             <name>Shallow</name>
          </node>
-         <node>
+         <node relatedTag="None">
             <name>Some</name>
          </node>
-         <node>
+         <node relatedTag="Supraliminal">
             <name>Subliminal</name>
          </node>
-         <node>
+         <node relatedTag="Subliminal">
             <name>Supraliminal</name>
          </node>
          <node relatedTag="Unsymmetric">
             <name>Symmetric</name>
          </node>
-         <node>
+         <node relatedTag="False">
             <name>True</name>
          </node>
          <node relatedTag="Constrained">
             <name>Unconstrained</name>
          </node>
+         <node relatedTag="Familiar">
+            <name>Unfamiliar</name>
+         </node>
          <node>
             <name>Unmasked</name>
             <description>Ability to perceive not influenced by presence of another stimulus</description>
          </node>
-         <node relatedTag="Symmetric">
-            <name>Unsymmetric</name>
-         </node>
-         <node>
+         <node relatedTag="Invalid">
             <name>Valid</name>
+         </node>
+         <node relatedTag="Involuntary">
+            <name>Voluntary</name>
          </node>
       </node>
       <node>
@@ -1984,12 +2054,6 @@
             <name>Electrical</name>
          </node>
          <node>
-            <name>Fractal</name>
-         </node>
-         <node>
-            <name>Involuntary</name>
-         </node>
-         <node>
             <name>Mechanical</name>
          </node>
          <node>
@@ -1997,9 +2061,6 @@
          </node>
          <node>
             <name>Numerical</name>
-         </node>
-         <node>
-            <name>Random</name>
          </node>
          <node>
             <name>Symbolic</name>
@@ -2677,6 +2738,88 @@
       <node extensionAllowed="true">
          <name>Spatiotemporal</name>
          <node>
+            <name>Rate-of-change</name>
+            <node>
+               <name>Acceleration</name>
+               <node isNumeric="true" takesValue="true" unitClass="acceleration">
+                  <name>#</name>
+               </node>
+            </node>
+            <node>
+               <name>Jerk-rate</name>
+               <description>Rate at which an object's acceleration changes with respect to time.</description>
+               <node isNumeric="true" takesValue="true" unitClass="jerk">
+                  <name>#</name>
+               </node>
+            </node>
+            <node requireChild="true">
+               <name>Sampling-rate</name>
+               <description>Number of measurements per unit time.</description>
+               <node takesValue="true" unitClass="frequency">
+                  <name>#</name>
+               </node>
+            </node>
+            <node requireChild="true">
+               <name>Refresh-rate</name>
+               <description>Number of times per second a device displays an image. Also known as the frame rate.</description>
+               <node isNumeric="true" takesValue="true">
+                  <name>#</name>
+               </node>
+            </node>
+            <node>
+               <name>Temporal-rate</name>
+               <description>Number of occurrences in a unit of time.</description>
+               <node isNumeric="true" takesValue="true">
+                  <name>#</name>
+               </node>
+            </node>
+            <node>
+               <name>Velocity</name>
+               <node isNumeric="true" takesValue="true" unitClass="speed">
+                  <name>#</name>
+               </node>
+            </node>
+         </node>
+         <node>
+            <name>Resolution</name>
+            <node requireChild="true">
+               <name>IO-resolution</name>
+               <node requireChild="true">
+                  <name>Screen-resolution</name>
+                  <description>Number of pixels in each dimension for a digital display device.</description>
+                  <node takesValue="true">
+                     <name>#</name>
+                  </node>
+               </node>
+               <node requireChild="true">
+                  <name>Printer-resolution</name>
+                  <description>Number of dots-per-inch for a printer.</description>
+                  <node takesValue="true">
+                     <name>#</name>
+                  </node>
+               </node>
+            </node>
+            <node requireChild="true">
+               <name>Spatial-resolution</name>
+               <description>Linear spacing of a spatial measurement.</description>
+               <node takesValue="true">
+                  <name>#</name>
+               </node>
+            </node>
+            <node requireChild="true">
+               <name>Spectral-resolution</name>
+               <node takesValue="true">
+                  <name>#</name>
+               </node>
+            </node>
+            <node requireChild="true">
+               <name>Temporal-resolution</name>
+               <node takesValue="true">
+                  <name>#</name>
+               </node>
+            </node>
+         </node>
+         <node>
             <name>Spatial</name>
             <node>
                <name>Direction</name>
@@ -2686,7 +2829,7 @@
             </node>
             <node requireChild="true">
                <name>Distance</name>
-               <description>Distance from a specified position in a specified Direction</description>
+               <description>Distance from a specified position in a specified Direction or grouped with an item from which the distance is measured.</description>
                <node isNumeric="true" takesValue="true" unitClass="physicalLength">
                   <name>#</name>
                </node>
@@ -2788,56 +2931,17 @@
             </node>
          </node>
          <node>
-            <name>Resolution</name>
-            <node requireChild="true">
-               <name>IO-resolution</name>
-               <node requireChild="true">
-                  <name>Screen-resolution</name>
-                  <description>Number of pixels in each dimension for a digital display device.</description>
-                  <node takesValue="true">
-                     <name>#</name>
-                  </node>
-               </node>
-               <node requireChild="true">
-                  <name>Printer-resolution</name>
-                  <description>Number of dots-per-inch for a printer.</description>
-                  <node takesValue="true">
-                     <name>#</name>
-                  </node>
-               </node>
-            </node>
-            <node requireChild="true">
-               <name>Spatial-resolution</name>
-               <description>Linear spacing of a spatial measurement.</description>
-               <node takesValue="true">
-                  <name>#</name>
-               </node>
-            </node>
-            <node requireChild="true">
-               <name>Spectral-resolution</name>
-               <node takesValue="true">
-                  <name>#</name>
-               </node>
-            </node>
-            <node requireChild="true">
-               <name>Temporal-resolution</name>
-               <node takesValue="true">
-                  <name>#</name>
-               </node>
-            </node>
-         </node>
-         <node>
             <name>Temporal</name>
-            <node>
+            <node requireChild="true">
                <name>Delay</name>
-               <description>Indicator of some amount of time elapsed before something happens.</description>
+               <description>An indicator that the associated tag group represents something temporally offset from the current event. The delay value can be positive or negative and should always appear in a tag group indicating what is delayed.</description>
                <node isNumeric="true" takesValue="true" unitClass="time">
                   <name>#</name>
                </node>
             </node>
             <node requireChild="true">
                <name>Duration</name>
-               <description>An offset that is implicit after duration time passed from the onset</description>
+               <description>An offset that is implicit after duration time passed from the onset.</description>
                <node isNumeric="true" takesValue="true" unitClass="time">
                   <name>#</name>
                </node>
@@ -2853,20 +2957,6 @@
                <description>Indicating something stopped such as a break or waiting for input.</description>
             </node>
             <node requireChild="true">
-               <name>Response-start-delay</name>
-               <description>How long the start of the response is delayed from the stimulus onset.</description>
-               <node isNumeric="true" takesValue="true" unitClass="time">
-                  <name>#</name>
-               </node>
-            </node>
-            <node requireChild="true">
-               <name>Response-end-delay</name>
-               <description>How long the end of the response is delayed from the stimulus onset.</description>
-               <node isNumeric="true" takesValue="true" unitClass="time">
-                  <name>#</name>
-               </node>
-            </node>
-            <node requireChild="true">
                <name>Temporal-value</name>
                <node isNumeric="true" takesValue="true" unitClass="time">
                   <name>#</name>
@@ -2878,49 +2968,6 @@
             <node>
                <name>Time-sync</name>
                <description>Indicates a marker inserted into the recorded data to allow post hoc synchronization of concurrently recorded data streams.</description>
-            </node>
-         </node>
-         <node>
-            <name>Rate-of-change</name>
-            <node>
-               <name>Acceleration</name>
-               <node isNumeric="true" takesValue="true" unitClass="acceleration">
-                  <name>#</name>
-               </node>
-            </node>
-            <node>
-               <name>Jerk-rate</name>
-               <description>Rate at which an object's acceleration changes with respect to time.</description>
-               <node isNumeric="true" takesValue="true" unitClass="jerk">
-                  <name>#</name>
-               </node>
-            </node>
-            <node requireChild="true">
-               <name>Sampling-rate</name>
-               <description>Number of measurements per unit time.</description>
-               <node takesValue="true" unitClass="frequency">
-                  <name>#</name>
-               </node>
-            </node>
-            <node requireChild="true">
-               <name>Refresh-rate</name>
-               <description>Number of times per second a device displays an image. Also known as the frame rate.</description>
-               <node isNumeric="true" takesValue="true">
-                  <name>#</name>
-               </node>
-            </node>
-            <node>
-               <name>Temporal-rate</name>
-               <description>Number of occurrences in a unit of time.</description>
-               <node isNumeric="true" takesValue="true">
-                  <name>#</name>
-               </node>
-            </node>
-            <node>
-               <name>Velocity</name>
-               <node isNumeric="true" takesValue="true" unitClass="speed">
-                  <name>#</name>
-               </node>
             </node>
          </node>
       </node>
