@@ -19,6 +19,7 @@ from hed.schema.schema_io import schema_util, df_util
 from hed.schema.schema_io.schema2xml import Schema2XML
 from hed.schema.schema_io.schema2wiki import Schema2Wiki
 from hed.schema.schema_io.schema2df import Schema2DF
+from hed.schema.schema_io.schema2json import Schema2JSON
 
 from hed.schema.hed_schema_section import (
     HedSchemaSection,
@@ -376,6 +377,34 @@ class HedSchema(HedSchemaBase):
         if hasattr(self, "extras") and self.extras:
             output_dfs.update(self.extras)
         df_util.save_dataframes(base_filename, output_dfs)
+
+    def get_as_json_string(self, save_merged=False) -> str:
+        """Return the schema as a JSON string.
+
+        Parameters:
+            save_merged (bool): If True, this will save the schema as a merged schema if it is a "withStandard" schema.
+                                If it is not a "withStandard" schema, this setting has no effect.
+
+        Returns:
+            str: The schema as a JSON string.
+        """
+        json_dict = Schema2JSON().process_schema(self, save_merged)
+        return json.dumps(json_dict, indent=2)
+
+    def save_as_json(self, filename, save_merged=False):
+        """Save as JSON to a file.
+
+        Parameters:
+            filename (str): Save location.
+            save_merged (bool): If True, this will save the schema as a merged schema if it is a "withStandard" schema.
+                                If it is not a "withStandard" schema, this setting has no effect.
+
+        Raises:
+            OSError: File cannot be saved for some reason.
+        """
+        json_dict = Schema2JSON().process_schema(self, save_merged)
+        with open(filename, mode="w", encoding="utf-8") as opened_file:
+            json.dump(json_dict, opened_file, indent=2)
 
     def set_schema_prefix(self, schema_namespace):
         """Set library namespace associated for this schema.
