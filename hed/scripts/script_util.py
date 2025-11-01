@@ -4,7 +4,7 @@ from hed.schema import from_string, load_schema, from_dataframes
 from hed.errors import get_printable_issue_string, HedFileError, SchemaWarnings
 from hed.schema.schema_comparer import SchemaComparer
 
-all_extensions = [".tsv", ".mediawiki", ".xml"]
+all_extensions = [".tsv", ".mediawiki", ".xml", ".json"]
 
 
 def validate_schema_object(base_schema, schema_name):
@@ -26,6 +26,11 @@ def validate_schema_object(base_schema, schema_name):
         reloaded_schema = from_string(xml_string, schema_format=".xml")
 
         validation_issues += _get_schema_comparison(base_schema, reloaded_schema, schema_name, "xml")
+
+        json_string = base_schema.get_as_json_string(save_merged=True)
+        reloaded_schema = from_string(json_string, schema_format=".json")
+
+        validation_issues += _get_schema_comparison(base_schema, reloaded_schema, schema_name, "json")
 
         tsv_dataframes = base_schema.get_as_dataframes(save_merged=True)
         reloaded_schema = from_dataframes(tsv_dataframes)
@@ -90,11 +95,11 @@ def sort_base_schemas(filenames, add_all_extensions=False):
 
     Parameters:
         filenames(list or container): The changed filenames
-        add_all_extensions(bool): If True, always return all 3 filenames for any schemas found.
+        add_all_extensions(bool): If True, always return all 4 filenames for any schemas found.
 
     Returns:
         sorted_files(dict): A dictionary where keys are the basename, and the values are a set of extensions modified
-                            Can include tsv, mediawiki, and xml.
+                            Can include tsv, mediawiki, xml, and json.
     """
     schema_files = defaultdict(set)
     for file_path in filenames:
@@ -102,7 +107,7 @@ def sort_base_schemas(filenames, add_all_extensions=False):
             print(f"Ignoring deleted file {file_path}.")
             continue
         basename, extension = os.path.splitext(file_path)
-        if extension == ".xml" or extension == ".mediawiki":
+        if extension == ".xml" or extension == ".mediawiki" or extension == ".json":
             schema_files[basename].add(extension)
             continue
         elif extension == ".tsv":

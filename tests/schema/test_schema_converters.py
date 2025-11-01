@@ -101,6 +101,28 @@ class TestConverterBase(unittest.TestCase):
         if self.can_compare:
             self.assertEqual(self.hed_schema_wiki, self.hed_schema_xml)
 
+    @with_temp_file(".json")
+    def test_schema2json(self, filename):
+        self.hed_schema_xml.save_as_json(filename)
+        loaded_schema = schema.load_schema(filename)
+
+        self.assertEqual(loaded_schema, self.hed_schema_xml)
+
+    def test_schema_as_string_json(self):
+        json_string = self.hed_schema_xml.get_as_json_string()
+        string_schema = schema.from_string(json_string, schema_format=".json")
+
+        self.assertEqual(string_schema, self.hed_schema_xml)
+
+    @with_temp_file(".json")
+    def test_wikischema2json(self, filename):
+        self.hed_schema_wiki.save_as_json(filename)
+        loaded_schema = schema.load_schema(filename)
+
+        wiki_schema_copy = copy.deepcopy(self.hed_schema_wiki)
+
+        self.assertEqual(loaded_schema, wiki_schema_copy)
+
 
 class TestComplianceBase(unittest.TestCase):
     xml_file_old = "../data/schema_tests/HED8.0.0t.xml"
