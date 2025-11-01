@@ -143,10 +143,12 @@ class Schema2JSON(Schema2Base):
         # For unit classes, add units section
         if hasattr(entry, 'units') and entry.units:
             entry_dict[json_constants.UNITS_KEY] = {}
-        
-        parent_dict[entry_name] = entry_dict
-        
-        return entry_dict
+            # Return the units sub-dictionary so units can be added there
+            parent_dict[entry_name] = entry_dict
+            return entry_dict[json_constants.UNITS_KEY]
+        else:
+            parent_dict[entry_name] = entry_dict
+            return entry_dict
 
     def _format_tag_attributes_json(self, attributes):
         """Format tag attributes for JSON output.
