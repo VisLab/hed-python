@@ -16,6 +16,7 @@ class Schema2JSON(Schema2Base):
     # =========================================
     def _initialize_output(self):
         self.json_dict = {}
+        # Alias to output to match baseclass expectation
         self.output = self.json_dict
 
     def _output_header(self, attributes):

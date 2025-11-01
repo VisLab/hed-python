@@ -95,7 +95,7 @@ def sort_base_schemas(filenames, add_all_extensions=False):
 
     Parameters:
         filenames(list or container): The changed filenames
-        add_all_extensions(bool): If True, always return all 4 filenames for any schemas found.
+        add_all_extensions(bool): If True, always return all 4 filenames for any schemas found (tsv, mediawiki, xml, and json).
 
     Returns:
         sorted_files(dict): A dictionary where keys are the basename, and the values are a set of extensions modified

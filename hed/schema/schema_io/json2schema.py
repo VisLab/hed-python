@@ -196,9 +196,7 @@ class SchemaLoaderJSON(SchemaLoader):
         # Convert JSON attribute names back to HedKey constants
         hed_attr_name = self._map_json_to_hed_key(attr_name)
         
-        # Keep boolean values as booleans (don't convert to strings)
-        # This matches how XML stores them
-        
+        # Keep boolean values as booleans (don't convert to strings) - matches how XML stores them
         entry._set_attribute_value(hed_attr_name, attr_value)
 
     def _map_json_to_hed_key(self, json_key):
