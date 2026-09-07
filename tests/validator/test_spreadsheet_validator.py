@@ -3,13 +3,12 @@ import json
 import os
 import shutil
 import unittest
-from unittest.mock import patch
 
 import pandas as pd
 
 from hed import Sidecar, SpreadsheetInput, TabularInput, load_schema, load_schema_version
 from hed.errors.error_reporter import ErrorHandler
-from hed.errors.error_types import ErrorContext, TemporalErrors, ValidationErrors
+from hed.errors.error_types import ErrorContext, ValidationErrors
 from hed.validator import SpreadsheetValidator
 
 
@@ -241,13 +240,31 @@ class TestSpreadsheetValidation(unittest.TestCase):
         self.assertTrue(all(issue.get("ec_filename") == "events.tsv" for issue in issues))
         self.assertEqual(error_handler.error_context, [])
 
+    def test_tabular_input_validate_empty_name_suppresses_filename_context(self):
+        """TabularInput.validate with name="" adds no FILE_NAME context even though the input has a name."""
+        named = TabularInput(
+            pd.DataFrame({"onset": [1.0], "duration": [0], "HED": ["InvalidTagXYZ"]}), name="events.tsv"
+        )
+
+        issues = named.validate(self.schema)
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all(issue.get("ec_filename") == "events.tsv" for issue in issues))
+
+        issues = named.validate(self.schema, name="")
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all("ec_filename" not in issue for issue in issues))
+
     def test_validate_pops_context_on_onset_na_early_return(self):
         """The early return on onset n/a issues must not leave the FILE_NAME context on the stack."""
-        onset_issue = [{"code": TemporalErrors.TEMPORAL_TAG_NO_TIME, "message": "x", "severity": 1}]
+        # A temporal tag on a row whose onset is n/a is reported as TEMPORAL_TAG_ERROR and stops
+        # validation, so the invalid tag on the first row is never reported.
+        tsv = "onset\tduration\tHED\n1.0\t0\tInvalidTagXYZ\nn/a\t0\t(Onset, Def/MyDef)\n"
         error_handler = ErrorHandler()
 
-        with patch.object(SpreadsheetValidator, "_check_onset_nans", return_value=onset_issue):
-            issues = self.validator.validate(self._small_events(), name="events.tsv", error_handler=error_handler)
+        issues = self.validator.validate(TabularInput(io.StringIO(tsv)), name="events.tsv", error_handler=error_handler)
 
-        self.assertEqual(issues, onset_issue)
+        codes = {issue["code"] for issue in issues}
+        self.assertIn(ValidationErrors.TEMPORAL_TAG_ERROR, codes)
+        self.assertNotIn(ValidationErrors.TAG_INVALID, codes)
+        self.assertTrue(all(issue.get("ec_filename") == "events.tsv" for issue in issues))
         self.assertEqual(error_handler.error_context, [])

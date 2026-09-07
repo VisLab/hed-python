@@ -371,8 +371,9 @@ class BaseInput:
         Parameters:
             hed_schema (HedSchema): The schema to use for validation.
             extra_def_dicts (list of DefDict or DefDict): All definitions to use for validation.
-            name (str): The name to report errors from this file as. Defaults to this input's own
-                name; if neither is set, no FILE_NAME context is added to the issues.
+            name (str or None): The name to report errors from this file as. None (the default) uses
+                this input's own name; an empty string suppresses the FILE_NAME context even when the
+                input has a name, so a caller can manage the location context itself.
             error_handler (ErrorHandler): Error context to use. Creates a new one if None.
 
         Returns:
@@ -380,7 +381,7 @@ class BaseInput:
         """
         from hed.validator.spreadsheet_validator import SpreadsheetValidator
 
-        if not name:
+        if name is None:
             name = self.name
         tab_validator = SpreadsheetValidator(hed_schema)
         validation_issues = tab_validator.validate(

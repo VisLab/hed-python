@@ -13597,7 +13597,7 @@
       <schemaPrefix>
          <name>xml:</name>
          <namespace>http://www.w3.org/XML/1998/namespace</namespace>
-         <description>XLM Namespace [XML]</description>
+         <description>XML Namespace [XML]</description>
       </schemaPrefix>
       <schemaPrefix>
          <name>xsd:</name>

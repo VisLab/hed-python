@@ -189,6 +189,11 @@ class Test(unittest.TestCase):
         issues = named.validate(self.hed_schema, name="override")
         self.assertTrue(all(issue.get("ec_filename") == "override" for issue in issues))
 
+        # An empty name suppresses the FILE_NAME context even though the sidecar has a name
+        issues = named.validate(self.hed_schema, name="")
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all("ec_filename" not in issue for issue in issues))
+
         # No name anywhere: no FILE_NAME context is added
         unnamed = Sidecar(io.StringIO(sidecar_json))
         issues = unnamed.validate(self.hed_schema)
