@@ -3,12 +3,13 @@ import json
 import os
 import shutil
 import unittest
+from unittest.mock import patch
 
 import pandas as pd
 
 from hed import Sidecar, SpreadsheetInput, TabularInput, load_schema, load_schema_version
 from hed.errors.error_reporter import ErrorHandler
-from hed.errors.error_types import ValidationErrors
+from hed.errors.error_types import ErrorContext, TemporalErrors, ValidationErrors
 from hed.validator import SpreadsheetValidator
 
 
@@ -213,3 +214,40 @@ class TestSpreadsheetValidation(unittest.TestCase):
         issues2 = self.validator.validate(TabularInput(df_with_nans, sidecar=sidecar2), def_dicts=def_dict)
         self.assertEqual(len(issues2), 1)
         self.assertEqual(issues1[0]["code"], ValidationErrors.ONSETS_UNORDERED)
+
+    def _small_events(self):
+        return TabularInput(pd.DataFrame({"onset": [1.0, 2.0], "duration": [0, 0], "HED": ["Red", "InvalidTagXYZ"]}))
+
+    def test_validate_without_name_adds_no_filename_context(self):
+        """With no name, the validator adds no FILE_NAME context and leaves the caller's context intact."""
+        error_handler = ErrorHandler()
+        error_handler.push_error_context(ErrorContext.TABLE_NAME, "trials")
+
+        issues = self.validator.validate(self._small_events(), error_handler=error_handler)
+
+        self.assertGreater(len(issues), 0)
+        for issue in issues:
+            self.assertNotIn("ec_filename", issue)
+            self.assertEqual(issue.get("ec_table_name"), "trials")
+        self.assertEqual(error_handler.error_context, [(ErrorContext.TABLE_NAME, "trials")])
+
+    def test_validate_with_name_keeps_filename_context(self):
+        """With a name, every issue carries it as ec_filename, as before."""
+        error_handler = ErrorHandler()
+
+        issues = self.validator.validate(self._small_events(), name="events.tsv", error_handler=error_handler)
+
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all(issue.get("ec_filename") == "events.tsv" for issue in issues))
+        self.assertEqual(error_handler.error_context, [])
+
+    def test_validate_pops_context_on_onset_na_early_return(self):
+        """The early return on onset n/a issues must not leave the FILE_NAME context on the stack."""
+        onset_issue = [{"code": TemporalErrors.TEMPORAL_TAG_NO_TIME, "message": "x", "severity": 1}]
+        error_handler = ErrorHandler()
+
+        with patch.object(SpreadsheetValidator, "_check_onset_nans", return_value=onset_issue):
+            issues = self.validator.validate(self._small_events(), name="events.tsv", error_handler=error_handler)
+
+        self.assertEqual(issues, onset_issue)
+        self.assertEqual(error_handler.error_context, [])

@@ -3,6 +3,8 @@ import os
 import unittest
 
 from hed import schema
+from hed.errors.error_reporter import ErrorHandler
+from hed.errors.error_types import ErrorContext, SidecarErrors
 from hed.models import Sidecar
 from hed.validator.sidecar_validator import SidecarValidator
 
@@ -182,3 +184,38 @@ class Test(unittest.TestCase):
         sidecar = Sidecar(io.StringIO(sidecar_json))
         issues = sidecar.validate(self.hed_schema)
         self.assertEqual(len(issues), expected_number_of_issues)
+
+    def test_validate_without_name_adds_no_filename_context(self):
+        """With no name, the validator adds no FILE_NAME context and leaves the caller's context intact."""
+        sidecar = Sidecar(io.StringIO('{"event_code": {"HED": {"a": "Event", "b": "InvalidTagXYZ"}}}'))
+        error_handler = ErrorHandler()
+        error_handler.push_error_context(ErrorContext.TABLE_NAME, "trials")
+
+        issues = SidecarValidator(self.hed_schema).validate(sidecar, error_handler=error_handler)
+
+        self.assertGreater(len(issues), 0)
+        for issue in issues:
+            self.assertNotIn("ec_filename", issue)
+            self.assertEqual(issue.get("ec_table_name"), "trials")
+        self.assertEqual(error_handler.error_context, [(ErrorContext.TABLE_NAME, "trials")])
+
+    def test_validate_with_name_keeps_filename_context(self):
+        """With a name, every issue carries it as ec_filename, as before."""
+        sidecar = Sidecar(io.StringIO('{"event_code": {"HED": {"a": "Event", "b": "InvalidTagXYZ"}}}'))
+        error_handler = ErrorHandler()
+
+        issues = SidecarValidator(self.hed_schema).validate(sidecar, name="events.json", error_handler=error_handler)
+
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all(issue.get("ec_filename") == "events.json" for issue in issues))
+        self.assertEqual(error_handler.error_context, [])
+
+    def test_validate_pops_context_on_structure_error(self):
+        """The early return on a reference error must not leave the FILE_NAME context on the stack."""
+        sidecar = Sidecar(io.StringIO('{"event_code": {"HED": {"a": "Event, {missing_column}"}}}'))
+        error_handler = ErrorHandler()
+
+        issues = SidecarValidator(self.hed_schema).validate(sidecar, name="events.json", error_handler=error_handler)
+
+        self.assertIn(SidecarErrors.SIDECAR_BRACES_INVALID, {issue["code"] for issue in issues})
+        self.assertEqual(error_handler.error_context, [])

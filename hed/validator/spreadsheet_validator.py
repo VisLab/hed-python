@@ -46,7 +46,9 @@ class SpreadsheetValidator:
         Parameters:
             data (BaseInput): Input data to be validated.
             def_dicts (list of DefDict or DefDict): all definitions to use for validation
-            name (str): The name to report errors from this file as
+            name (str): The name to report errors from this file as. If empty, no FILE_NAME context
+                is added, so a caller that manages its own location context (for example a table
+                inside a larger file) sees only the context it pushed.
             error_handler (ErrorHandler): Error context to use. Creates a new one if None.
 
         Returns:
@@ -61,7 +63,18 @@ class SpreadsheetValidator:
 
         self.invalid_original_rows = set()
 
-        error_handler.push_error_context(ErrorContext.FILE_NAME, name)
+        # The FILE_NAME context is popped in a finally block so that every return path, including the
+        # early return on onset n/a issues, leaves the caller's error handler as it found it.
+        if name:
+            error_handler.push_error_context(ErrorContext.FILE_NAME, name)
+        try:
+            return self._validate_input(data, def_dicts, error_handler)
+        finally:
+            if name:
+                error_handler.pop_error_context()
+
+    def _validate_input(self, data, def_dicts, error_handler) -> list[dict]:
+        """Body of validate, run with the FILE_NAME context (if any) already pushed."""
         # Adjust to account for 1 based
         row_adj = 1
         # Adjust to account for column names
@@ -105,7 +118,6 @@ class SpreadsheetValidator:
         if self._onset_validator:
             issues += self._run_onset_checks(onsets, error_handler=error_handler, row_adj=row_adj)
             issues += self._recheck_duplicates(onsets, error_handler=error_handler, row_adj=row_adj)
-        error_handler.pop_error_context()
 
         issues = sort_issues(issues)
         return issues

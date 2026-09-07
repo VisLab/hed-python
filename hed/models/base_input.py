@@ -371,7 +371,8 @@ class BaseInput:
         Parameters:
             hed_schema (HedSchema): The schema to use for validation.
             extra_def_dicts (list of DefDict or DefDict): All definitions to use for validation.
-            name (str): The name to report errors from this file as.
+            name (str): The name to report errors from this file as. Defaults to this input's own
+                name; if neither is set, no FILE_NAME context is added to the issues.
             error_handler (ErrorHandler): Error context to use. Creates a new one if None.
 
         Returns:

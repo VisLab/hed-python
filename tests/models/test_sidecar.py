@@ -177,6 +177,24 @@ class Test(unittest.TestCase):
         sidecar_short = Sidecar(os.path.join(self.base_data_dir, "sidecar_tests/short_tag_test.json"))
         self.assertEqual(sidecar.loaded_dict, sidecar_short.loaded_dict)
 
+    def test_validate_defaults_name_to_sidecar_name(self):
+        """validate() reports issues under the sidecar's own name when no name is passed."""
+        sidecar_json = '{"event_code": {"HED": {"a": "Event", "b": "InvalidTagXYZ"}}}'
+        named = Sidecar(io.StringIO(sidecar_json), name="my_sidecar")
+        issues = named.validate(self.hed_schema)
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all(issue.get("ec_filename") == "my_sidecar" for issue in issues))
+
+        # An explicit name still wins over the sidecar's own name
+        issues = named.validate(self.hed_schema, name="override")
+        self.assertTrue(all(issue.get("ec_filename") == "override" for issue in issues))
+
+        # No name anywhere: no FILE_NAME context is added
+        unnamed = Sidecar(io.StringIO(sidecar_json))
+        issues = unnamed.validate(self.hed_schema)
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all("ec_filename" not in issue for issue in issues))
+
 
 if __name__ == "__main__":
     unittest.main()

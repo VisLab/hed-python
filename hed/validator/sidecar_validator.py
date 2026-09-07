@@ -39,25 +39,37 @@ class SidecarValidator:
         Parameters:
             sidecar (Sidecar): Input data to be validated.
             extra_def_dicts (list or DefinitionDict): extra def dicts in addition to sidecar
-            name (str): The name to report this sidecar as
+            name (str): The name to report this sidecar as. If empty, no FILE_NAME context is
+                added, so a caller that manages its own location context (for example a table
+                inside a larger file) sees only the context it pushed.
             error_handler (ErrorHandler): Error context to use. Creates a new one if None.
 
         Returns:
             list[dict]: A list of issues associated with each level in the HED string.
         """
-        from hed.validator import HedValidator
-
-        issues = []
         if error_handler is None:
             error_handler = ErrorHandler()
 
-        error_handler.push_error_context(ErrorContext.FILE_NAME, name)
+        # The FILE_NAME context is popped in a finally block so that every return path, including the
+        # early return on structure or reference errors, leaves the caller's error handler as it found it.
+        if name:
+            error_handler.push_error_context(ErrorContext.FILE_NAME, name)
+        try:
+            return self._validate_sidecar(sidecar, extra_def_dicts, error_handler)
+        finally:
+            if name:
+                error_handler.pop_error_context()
+
+    def _validate_sidecar(self, sidecar, extra_def_dicts, error_handler) -> list[dict]:
+        """Body of validate, run with the FILE_NAME context (if any) already pushed."""
+        from hed.validator import HedValidator
+
+        issues = []
         issues += self.validate_structure(sidecar, error_handler=error_handler)
         issues += self._validate_refs(sidecar, error_handler)
 
         # only allowed early out, something is very wrong with structure or refs
         if check_for_any_errors(issues):
-            error_handler.pop_error_context()
             return issues
         sidecar_def_dict = sidecar.get_def_dict(hed_schema=self._schema, extra_def_dicts=extra_def_dicts)
         hed_validator = HedValidator(self._schema, def_dicts=sidecar_def_dict, definitions_allowed=True)
@@ -122,8 +134,6 @@ class SidecarValidator:
             error_handler.pop_error_context()  # Column Name
         issues += self._check_definitions_bad_spot(definition_checks, error_handler)
         issues = sort_issues(issues)
-
-        error_handler.pop_error_context()  # Filename
 
         return issues
 
