@@ -160,7 +160,9 @@ class Sidecar:
         Parameters:
             hed_schema (HedSchema): Input data to be validated.
             extra_def_dicts (list or DefinitionDict): Extra def dicts in addition to sidecar.
-            name (str): The name to report this sidecar as.
+            name (str or None): The name to report this sidecar as. None (the default) uses the
+                sidecar's own name; an empty string suppresses the FILE_NAME context even when the
+                sidecar has a name, so a caller can manage the location context itself.
             error_handler (ErrorHandler): Error context to use. Creates a new one if None.
 
         Returns:
@@ -171,6 +173,8 @@ class Sidecar:
         if error_handler is None:
             error_handler = ErrorHandler()
 
+        if name is None:
+            name = self.name
         validator = SidecarValidator(hed_schema)
         issues = validator.validate(self, extra_def_dicts, name, error_handler=error_handler)
         return issues

@@ -1434,7 +1434,7 @@ A final section.
 * <nowiki>prefix=rdfs:,namespace=http://www.w3.org/2000/01/rdf-schema,description=The RDF Schema namespace [RDFS]</nowiki>
 * <nowiki>prefix=skos:,namespace=http://www.w3.org/2004/02/skos/core,description=SKOS (Simple Knowledge Organization System) Vocabulary</nowiki>
 * <nowiki>prefix=terms:,namespace=http://purl.org/dc/terms/#,description=The Dublin Core terms</nowiki>
-* <nowiki>prefix=xml:,namespace=http://www.w3.org/XML/1998/namespace,description=XLM Namespace [XML]</nowiki>
+* <nowiki>prefix=xml:,namespace=http://www.w3.org/XML/1998/namespace,description=XML Namespace [XML]</nowiki>
 * <nowiki>prefix=xsd:,namespace=http://www.w3.org/2001/XMLSchema,description=XML Schema Namespace [XMLSCHEMA11-2]</nowiki>
 
 '''External annotations'''

@@ -8,7 +8,7 @@ import pandas as pd
 
 from hed import Sidecar, SpreadsheetInput, TabularInput, load_schema, load_schema_version
 from hed.errors.error_reporter import ErrorHandler
-from hed.errors.error_types import ValidationErrors
+from hed.errors.error_types import ErrorContext, ValidationErrors
 from hed.validator import SpreadsheetValidator
 
 
@@ -213,3 +213,58 @@ class TestSpreadsheetValidation(unittest.TestCase):
         issues2 = self.validator.validate(TabularInput(df_with_nans, sidecar=sidecar2), def_dicts=def_dict)
         self.assertEqual(len(issues2), 1)
         self.assertEqual(issues1[0]["code"], ValidationErrors.ONSETS_UNORDERED)
+
+    def _small_events(self):
+        return TabularInput(pd.DataFrame({"onset": [1.0, 2.0], "duration": [0, 0], "HED": ["Red", "InvalidTagXYZ"]}))
+
+    def test_validate_without_name_adds_no_filename_context(self):
+        """With no name, the validator adds no FILE_NAME context and leaves the caller's context intact."""
+        error_handler = ErrorHandler()
+        error_handler.push_error_context(ErrorContext.TABLE_NAME, "trials")
+
+        issues = self.validator.validate(self._small_events(), error_handler=error_handler)
+
+        self.assertGreater(len(issues), 0)
+        for issue in issues:
+            self.assertNotIn("ec_filename", issue)
+            self.assertEqual(issue.get("ec_table_name"), "trials")
+        self.assertEqual(error_handler.error_context, [(ErrorContext.TABLE_NAME, "trials")])
+
+    def test_validate_with_name_keeps_filename_context(self):
+        """With a name, every issue carries it as ec_filename, as before."""
+        error_handler = ErrorHandler()
+
+        issues = self.validator.validate(self._small_events(), name="events.tsv", error_handler=error_handler)
+
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all(issue.get("ec_filename") == "events.tsv" for issue in issues))
+        self.assertEqual(error_handler.error_context, [])
+
+    def test_tabular_input_validate_empty_name_suppresses_filename_context(self):
+        """TabularInput.validate with name="" adds no FILE_NAME context even though the input has a name."""
+        named = TabularInput(
+            pd.DataFrame({"onset": [1.0], "duration": [0], "HED": ["InvalidTagXYZ"]}), name="events.tsv"
+        )
+
+        issues = named.validate(self.schema)
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all(issue.get("ec_filename") == "events.tsv" for issue in issues))
+
+        issues = named.validate(self.schema, name="")
+        self.assertGreater(len(issues), 0)
+        self.assertTrue(all("ec_filename" not in issue for issue in issues))
+
+    def test_validate_pops_context_on_onset_na_early_return(self):
+        """The early return on onset n/a issues must not leave the FILE_NAME context on the stack."""
+        # A temporal tag on a row whose onset is n/a is reported as TEMPORAL_TAG_ERROR and stops
+        # validation, so the invalid tag on the first row is never reported.
+        tsv = "onset\tduration\tHED\n1.0\t0\tInvalidTagXYZ\nn/a\t0\t(Onset, Def/MyDef)\n"
+        error_handler = ErrorHandler()
+
+        issues = self.validator.validate(TabularInput(io.StringIO(tsv)), name="events.tsv", error_handler=error_handler)
+
+        codes = {issue["code"] for issue in issues}
+        self.assertIn(ValidationErrors.TEMPORAL_TAG_ERROR, codes)
+        self.assertNotIn(ValidationErrors.TAG_INVALID, codes)
+        self.assertTrue(all(issue.get("ec_filename") == "events.tsv" for issue in issues))
+        self.assertEqual(error_handler.error_context, [])

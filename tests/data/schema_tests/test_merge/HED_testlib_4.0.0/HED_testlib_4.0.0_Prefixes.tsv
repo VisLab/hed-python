@@ -11,5 +11,5 @@ rdf:	http://www.w3.org/1999/02/22-rdf-syntax-ns		The RDF namespace [RDF-CONCEPTS
 rdfs:	http://www.w3.org/2000/01/rdf-schema		The RDF Schema namespace [RDFS]
 skos:	http://www.w3.org/2004/02/skos/core		SKOS (Simple Knowledge Organization System) Vocabulary
 terms:	http://purl.org/dc/terms/#		The Dublin Core terms
-xml:	http://www.w3.org/XML/1998/namespace		XLM Namespace [XML]
+xml:	http://www.w3.org/XML/1998/namespace		XML Namespace [XML]
 xsd:	http://www.w3.org/2001/XMLSchema		XML Schema Namespace [XMLSCHEMA11-2]
