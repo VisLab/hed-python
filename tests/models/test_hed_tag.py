@@ -174,5 +174,52 @@ class TestSchemaUtilityFunctions(TestHedBase):
         tag4 = HedTag("IntensityTakesValue/300", hed_schema=util_create_schemas.load_schema_intensity())
         self.assertEqual(300, tag4.value_as_default_unit())
 
+        # cd has no conversionFactor, so no conversion is possible: None, not the raw number.
         tag5 = HedTag("IntensityTakesValue/300 cd", hed_schema=util_create_schemas.load_schema_intensity())
-        self.assertEqual(300, tag5.value_as_default_unit())
+        self.assertEqual(None, tag5.value_as_default_unit())
+
+    def test_value_as_default_unit_no_conversion_factor(self):
+        # month and year are the factor-less units of timeUnits in 8.4.0 (spec item 1: no factor, no conversion).
+        self.assertIsNone(HedTag("Duration/3 month", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertIsNone(HedTag("Duration/1 year", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertAlmostEqual(180, HedTag("Duration/3 minutes", hed_schema=self.hed_schema).value_as_default_unit())
+
+    def test_value_as_default_unit_invalid_value_or_case(self):
+        # A wrongly cased unit is invalid (previously this raised TypeError from float(None)).
+        self.assertIsNone(HedTag("Length/3 Feet", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertAlmostEqual(0.9144, HedTag("Length/3 feet", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertIsNone(HedTag("Duration/3 MS", hed_schema=self.hed_schema).value_as_default_unit())
+        # A non-numeric value cannot be converted either (previously ValueError).
+        self.assertIsNone(HedTag("Duration/abc s", hed_schema=self.hed_schema).value_as_default_unit())
+
+    def test_unit_matching_is_case_sensitive(self):
+        # Names as listed, optionally pluralized; symbols exactly; modifiers exactly. Nothing case-folds.
+        length_units = self.hed_schema.unit_classes["physicalLengthUnits"]
+        self.assertIsNotNone(length_units.get_derivative_unit_entry("feet"))
+        self.assertIsNotNone(length_units.get_derivative_unit_entry("foot"))
+        self.assertIsNotNone(length_units.get_derivative_unit_entry("m"))
+        self.assertIsNotNone(length_units.get_derivative_unit_entry("km"))
+        self.assertIsNone(length_units.get_derivative_unit_entry("Feet"))
+        self.assertIsNone(length_units.get_derivative_unit_entry("FOOT"))
+        self.assertIsNone(length_units.get_derivative_unit_entry("M"))
+        self.assertIsNone(length_units.get_derivative_unit_entry("KM"))
+        time_units = self.hed_schema.unit_classes["timeUnits"]
+        self.assertIsNotNone(time_units.get_derivative_unit_entry("milliseconds"))
+        self.assertIsNotNone(time_units.get_derivative_unit_entry("ms"))
+        self.assertIsNone(time_units.get_derivative_unit_entry("Milliseconds"))
+        self.assertIsNone(time_units.get_derivative_unit_entry("Seconds"))
+        self.assertIsNone(time_units.get_derivative_unit_entry("MS"))
+        volt_units = self.hed_schema.unit_classes["electricPotentialUnits"]
+        self.assertIsNotNone(volt_units.get_derivative_unit_entry("uV"))
+        self.assertIsNone(volt_units.get_derivative_unit_entry("UV"))
+
+    def test_default_unit_derived_form(self):
+        # defaultUnits may be a derived form (mV here); the entry of the unit it derives from is returned.
+        schema = util_create_schemas.load_schema_derived_default()
+        tag = HedTag("VoltageTakesValue/3 V", hed_schema=schema)
+        default_unit = tag.default_unit
+        self.assertIsNotNone(default_unit)
+        self.assertEqual(default_unit.name, "V")
+        # An explicitly listed default still returns its own entry.
+        duration_default = HedTag("Duration/3 s", hed_schema=self.hed_schema).default_unit
+        self.assertEqual(duration_default.name, "s")

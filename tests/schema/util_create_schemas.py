@@ -64,3 +64,15 @@ def load_schema2():
 def load_schema_intensity():
     test_nodes = ["'''IntensityTakesValue'''", " * # {unitClass=intensityUnits}"]
     return _get_test_schema(test_nodes)
+
+
+def load_schema_derived_default():
+    """A unit class whose defaultUnits (mV) is a derived form of its only listed unit (V), as HED 8.5.0 allows."""
+    test_nodes = ["'''VoltageTakesValue'''", " * # {unitClass=testVoltageUnits}"]
+    unit_class_lines = (
+        default_end_lines,
+        "'''Unit classes'''",
+        "* testVoltageUnits <nowiki>{defaultUnits=mV}</nowiki>",
+        "** V <nowiki>{SIUnit, unitSymbol, conversionFactor=1.0}</nowiki>",
+    )
+    return _get_test_schema(test_nodes, unit_class_lines)

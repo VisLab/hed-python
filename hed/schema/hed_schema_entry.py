@@ -242,24 +242,18 @@ class UnitClassEntry(HedSchemaEntry):
     def get_derivative_unit_entry(self, units):
         """Gets the (derivative) unit entry if it exists
 
+        All unit strings are case-sensitive, so this is a single exact lookup: unit names may be pluralized
+        and carry an SI modifier, unit symbols may carry a modifier but are never pluralized, and none of
+        them may change case (``milliseconds`` and ``uV`` match; ``Milliseconds``, ``MS`` and ``UV`` do not).
+
         Parameters:
-            units (str): The unit name to check, can be plural or include a modifier.
+            units (str): The unit string as written, possibly plural or with a modifier.
 
         Returns:
             Union[UnitEntry, None]: The unit entry if it exists.
 
         """
-        possible_match = self.derivative_units.get(units)
-        # If we have a match that's a unit symbol, we're done, return it.
-        if possible_match and possible_match.has_attribute(HedKey.UnitSymbol):
-            return possible_match
-
-        possible_match = self.derivative_units.get(units.casefold())
-        # Unit symbols must match including case, a match of a unit symbol now is something like M becoming m.
-        if possible_match and possible_match.has_attribute(HedKey.UnitSymbol):
-            possible_match = None
-
-        return possible_match
+        return self.derivative_units.get(units)
 
 
 class UnitEntry(HedSchemaEntry):
@@ -293,11 +287,12 @@ class UnitEntry(HedSchemaEntry):
         super().finalize_entry(schema)
         self.unit_modifiers = schema._get_modifiers_for_unit(self.name)
         derivative_units = {}
+        # Unit strings are case-sensitive, so every key is built from the name exactly as listed.
+        # Unit names may be pluralized; unit symbols never are.
         if self.has_attribute(HedKey.UnitSymbol):
             base_plural_units = {self.name}
         else:
-            base_plural_units = {self.name.lower()}
-            base_plural_units.add(pluralize.plural(self.name.lower()))
+            base_plural_units = {self.name, pluralize.plural(self.name)}
 
         for derived_unit in base_plural_units:
             derivative_units[derived_unit] = self._get_conversion_factor(None)
@@ -322,10 +317,14 @@ class UnitEntry(HedSchemaEntry):
             unit_name (str or None): the full name of the unit with modifier
 
         Returns:
-            Union[float, None]: Returns the conversion factor or None
+            Union[float, None]: Returns the conversion factor, or None if this unit has no conversionFactor
+                                or unit_name is not one of its accepted forms.
         """
         if HedKey.ConversionFactor in self.attributes:
-            return float(self.derivative_units.get(unit_name))
+            factor = self.derivative_units.get(unit_name)
+            if factor is not None:
+                return float(factor)
+        return None
 
 
 class HedTagEntry(HedSchemaEntry):

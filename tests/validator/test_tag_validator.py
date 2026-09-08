@@ -184,13 +184,15 @@ class IndividualHedTagsShort(TestHed):
             "notRequiredScientific": True,
             "specialAllowedCharBadUnit": False,
             "specialAllowedCharUnit": True,
+            # Unit strings are case-sensitive: the test schema lists the symbol "v" and the name "Volt",
+            # so "volts", "VOLTS" and "KiloVolt" are invalid while "Volt" and "kiloVolt" are valid.
             "voltsTest1": True,
             "voltsTest2": True,
-            "voltsTest3": True,
-            "voltsTest4": True,
+            "voltsTest3": False,
+            "voltsTest4": False,
             "voltsTest5": True,
             "voltsTest6": True,
-            "voltsTest7": True,
+            "voltsTest7": False,
             "volumeTest1": True,
             "volumeTest2": False,
             "volumeTest3": True,
@@ -202,6 +204,7 @@ class IndividualHedTagsShort(TestHed):
         legal_time_units = ["s", "second", "day", "minute", "hour"]
         legal_freq_units = ["Hz", "hertz"]
         legal_intensity_units = ["candela", "cd", "dB"]
+        legal_volt_units = ["v", "Volt"]
 
         expected_issues = {
             "correctUnit": [],
@@ -232,11 +235,11 @@ class IndividualHedTagsShort(TestHed):
             "specialAllowedCharUnit": [],
             "voltsTest1": [],
             "voltsTest2": [],
-            "voltsTest3": [],
-            "voltsTest4": [],
+            "voltsTest3": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_volt_units),
+            "voltsTest4": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_volt_units),
             "voltsTest5": [],
             "voltsTest6": [],
-            "voltsTest7": [],
+            "voltsTest7": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_volt_units),
             "volumeTest1": [],
             "volumeTest2": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_intensity_units),
             "volumeTest3": [],

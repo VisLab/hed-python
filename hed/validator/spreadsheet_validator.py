@@ -99,6 +99,8 @@ class SpreadsheetValidator:
             issues += na_issues
             if len(na_issues) > 0:
                 return issues
+            assembled, delay_issues = self._check_delay_conversions(assembled, error_handler, row_adj)
+            issues += delay_issues
             onsets = df_util.split_delay_tags(assembled, self._schema, onsets)
         else:
             onsets = None
@@ -288,6 +290,50 @@ class SpreadsheetValidator:
             )
 
         return issues
+
+    def _check_delay_conversions(self, assembled, error_handler, row_adj):
+        """Report Delay tags whose value cannot be converted to default units and drop them from a copy.
+
+        df_util.split_delay_tags adds each Delay value to its row's onset and raises HedFileError when the
+        value cannot be converted (non-numeric value, invalid unit, or a unit with no conversionFactor, such as
+        'Delay/3 month' in HED 8.4.0). Validation must return issues instead of raising, so those Delay groups
+        are reported here as TEMPORAL_TAG_ERROR and removed from the copy of the assembled strings that feeds
+        the onset checks. The rows themselves are still validated in full by _run_checks, which reports any
+        invalid unit or value separately.
+
+        Parameters:
+            assembled (pd.Series): The assembled HED strings, indexed by row.
+            error_handler (ErrorHandler): The error handler to use for context.
+            row_adj (int): Adjustment to add to the row index for reporting.
+
+        Returns:
+            tuple[pd.Series, list]: The assembled strings with unconvertible Delay groups removed (the input
+                                    series itself when there were none), and the issues found.
+        """
+        issues = []
+        copied = False
+        for index, value in assembled.items():
+            if "delay/" not in value.casefold():
+                continue
+            hed_obj = HedString(value, self._schema)
+            bad_groups = []
+            error_handler.push_error_context(ErrorContext.ROW, index + row_adj)
+            error_handler.push_error_context(ErrorContext.HED_STRING, hed_obj)
+            for tag, group in hed_obj.find_top_level_tags(anchor_tags={DefTagNames.DELAY_KEY}):
+                if tag.value_as_default_unit() is None:
+                    issues += error_handler.format_error_with_context(
+                        TemporalErrors.TEMPORAL_TAG_NO_CONVERSION, tag=tag
+                    )
+                    bad_groups.append(group)
+            error_handler.pop_error_context()
+            error_handler.pop_error_context()
+            if bad_groups:
+                if not copied:
+                    assembled = assembled.copy()
+                    copied = True
+                hed_obj.remove(bad_groups)
+                assembled.at[index] = str(hed_obj)
+        return assembled, issues
 
     def _check_onset_nans(self, onsets, assembled, hed_schema, error_handler, row_adj):
         onset_mask = pd.isna(onsets)

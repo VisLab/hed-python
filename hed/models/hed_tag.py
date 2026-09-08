@@ -373,7 +373,11 @@ class HedTag:
         """Return the value converted to default units if possible or None if invalid.
 
         Returns:
-            Union[float, None]: The extension value in default units. If no default units it assumes that the extension value is in default units.
+            Union[float, None]: The extension value in default units. A value written without a unit is
+                                assumed to be in default units already. None if the value is not numeric,
+                                the unit is not valid for this tag, or the unit has no conversionFactor
+                                (for example 'Duration/3 month' in HED 8.4.0), since no conversion is
+                                possible then.
 
         Examples:
             'Duration/300 ms' will return .3
@@ -383,11 +387,18 @@ class HedTag:
         stripped_value, unit, unit_entry = HedTag._get_tag_units_portion(self.extension, tag_unit_classes)
         if not stripped_value:
             return None
-        if unit and not unit_entry:
+        try:
+            value = float(stripped_value)
+        except ValueError:
             return None
-        if unit and unit_entry and unit_entry.get_conversion_factor(unit) is not None:
-            return float(stripped_value) * unit_entry.get_conversion_factor(unit)
-        return float(stripped_value)
+        if not unit:
+            return value
+        if not unit_entry:
+            return None
+        conversion_factor = unit_entry.get_conversion_factor(unit)
+        if conversion_factor is None:
+            return None
+        return value * conversion_factor
 
     @property
     def unit_classes(self) -> dict:
@@ -526,13 +537,24 @@ class HedTag:
 
         Returns:
             unit(UnitEntry or None): the default unit entry for this tag, or None
+
+        Notes:
+            defaultUnits may name a derived form such as mA or kOhm (HED 8.5.0 and later), in which case
+            the entry of the unit it derives from (A, Ohm) is returned. A unit listed explicitly wins, so
+            HED 8.4.0 still returns its own uV entry rather than V.
         """
         # todo: Make this cached
         unit_classes = self.unit_classes.values()
         if len(unit_classes) == 1:
             first_unit_class_entry = list(unit_classes)[0]
             default_unit = first_unit_class_entry.has_attribute(HedKey.DefaultUnits, return_value=True)
-            return first_unit_class_entry.units.get(default_unit, None)
+            if not default_unit:
+                return None
+            unit_entry = first_unit_class_entry.units.get(default_unit)
+            if unit_entry is None:
+                unit_entry = first_unit_class_entry.get_derivative_unit_entry(default_unit)
+            return unit_entry
+        return None
 
     def base_tag_has_attribute(self, tag_attribute) -> bool:
         """Check to see if the tag has a specific attribute.

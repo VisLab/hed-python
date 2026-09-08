@@ -22,10 +22,8 @@ skip_tests = {
     "library-invalid-unpartnered-properties-allowed": "inLibrary stamp flagged as unknown attribute",
     "library-invalid-merged-properties-mismatch": "Reason k (Properties must match partner) not implemented",
     "library-invalid-reserved-in-unmerged": "Reason l (reserved in unmerged) not implemented",
-    # Added to hed-tests 2026-09-07 (hed-tests PR #51). The validator case-folds unit names and
-    # matches compound units as a whole; both are fixed by the units work (case-sensitive unit
-    # matching and component-wise compound units), not yet implemented.
-    "units-invalid-case": "Unit names are case-folded during matching; case-sensitive matching not implemented",
+    # Added to hed-tests 2026-09-07 (hed-tests PR #51). The validator matches compound units as a
+    # whole; fixed by component-wise compound unit expansion (units work item C1), not yet implemented.
     "units-invalid-compound-units": "Component-wise validation of compound units not implemented",
 }
 

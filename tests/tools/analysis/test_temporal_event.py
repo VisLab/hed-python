@@ -1,6 +1,7 @@
 import os
 import unittest
 
+from hed.errors.exceptions import HedFileError
 from hed.models import HedGroup, HedString, Sidecar, TabularInput
 from hed.models.model_constants import TopTagReturnType
 from hed.schema.hed_schema_io import load_schema_version
@@ -44,6 +45,22 @@ class Test(unittest.TestCase):
         self.assertTrue(temp_event.internal_group)
         self.assertEqual(temp_event.anchor, "Def/Blech/54.3")
         self.assertIsInstance(temp_event.internal_group, HedGroup)
+
+    def test_duration_with_conversion_factor(self):
+        test1 = HedString("(Duration/300 ms, (Label/Apple))", hed_schema=self.schema)
+        groups = test1.find_top_level_tags(["duration"], include_groups=TopTagReturnType.GROUPS)
+        temp_event = TemporalEvent(groups[0], 3, 4.5)
+        self.assertAlmostEqual(temp_event.end_time, 4.8)
+
+    def test_duration_without_conversion_factor_raises(self):
+        # month has no conversionFactor, so the end time cannot be computed; the error names the tag and row.
+        test1 = HedString("(Duration/3 month, (Label/Apple))", hed_schema=self.schema)
+        groups = test1.find_top_level_tags(["duration"], include_groups=TopTagReturnType.GROUPS)
+        with self.assertRaises(HedFileError) as ctx:
+            TemporalEvent(groups[0], 7, 4.5)
+        self.assertEqual(ctx.exception.code, "DurationNotConvertible")
+        self.assertIn("Duration/3 month", ctx.exception.message)
+        self.assertIn("row 7", ctx.exception.message)
 
     def test_constructor_on_files(self):
         manager1 = EventManager(self.input_data, self.schema)
