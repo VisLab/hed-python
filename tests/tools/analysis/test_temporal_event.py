@@ -60,7 +60,7 @@ class Test(unittest.TestCase):
             TemporalEvent(groups[0], 7, 4.5)
         self.assertEqual(ctx.exception.code, "DurationNotConvertible")
         self.assertIn("Duration/3 month", ctx.exception.message)
-        self.assertIn("row 7", ctx.exception.message)
+        self.assertIn("index 7", ctx.exception.message)
 
     def test_constructor_on_files(self):
         manager1 = EventManager(self.input_data, self.schema)

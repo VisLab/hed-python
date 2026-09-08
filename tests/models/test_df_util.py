@@ -693,7 +693,7 @@ class TestSplitDelayTags(unittest.TestCase):
             split_delay_tags(series, self.schema, onsets)
         self.assertEqual(ctx.exception.code, "DelayNotConvertible")
         self.assertIn("Delay/3 month", ctx.exception.message)
-        self.assertIn("row 1", ctx.exception.message)
+        self.assertIn("index 1", ctx.exception.message)
 
     def test_delay_with_invalid_unit_raises(self):
         # An invalid unit or a non-numeric value cannot be converted either (these used to raise TypeError

@@ -260,8 +260,8 @@ def split_delay_tags(series, hed_schema, onsets):
             if delay is None:
                 raise HedFileError(
                     "DelayNotConvertible",
-                    f"Delay tag '{tag}' on row {i} cannot be converted to default units (non-numeric value, "
-                    f"invalid unit, or a unit with no conversionFactor), so the delayed onset cannot be computed.",
+                    f"Delay tag '{tag}' at index {i} of the data cannot be converted to default units (non-numeric "
+                    f"value, invalid unit, or a unit with no conversionFactor), so the delayed onset cannot be computed.",
                     "",
                 )
             onset_mod = delay + float(onsets[i])

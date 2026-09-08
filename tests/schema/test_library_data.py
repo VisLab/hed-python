@@ -1,7 +1,8 @@
 """Source order of get_library_data: GitHub first, then the cached copy, then the packaged copy.
 
-The URL is redirected to a local file (a file:// URL, which urllib serves like any other) so these
-tests never reach the network, and each test uses its own cache folder.
+The registry URL is pointed at a real local file (a file:// URL, which urllib serves like any other) so these
+tests never reach the network, and each test uses its own cache folder. The module constant is set directly
+in each test and restored in tearDown; no mock objects are involved.
 """
 
 import json
@@ -10,7 +11,6 @@ import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from hed.schema import hed_cache
 from hed.schema.hed_cache import get_library_data
@@ -35,6 +35,7 @@ CACHED_REGISTRY = {
 class TestGetLibraryData(unittest.TestCase):
     def setUp(self):
         get_library_data.cache_clear()
+        self._saved_url = hed_cache.LIBRARY_DATA_URL
         self.tmp_dir = tempfile.mkdtemp()
         self.cache_folder = os.path.join(self.tmp_dir, "hed_cache")
         self.cache_registry = os.path.join(self.cache_folder, "library_data", "library_data.json")
@@ -43,6 +44,7 @@ class TestGetLibraryData(unittest.TestCase):
         self.unreachable_url = Path(os.path.join(self.tmp_dir, "missing", "library_data.json")).as_uri()
 
     def tearDown(self):
+        hed_cache.LIBRARY_DATA_URL = self._saved_url
         get_library_data.cache_clear()
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
@@ -59,9 +61,9 @@ class TestGetLibraryData(unittest.TestCase):
     def test_url_is_authoritative(self):
         self._write_json(self.url_registry, URL_REGISTRY)
         self._write_json(self.cache_registry, CACHED_REGISTRY)
-        with patch.object(hed_cache, "LIBRARY_DATA_URL", self.url):
-            standard = get_library_data("", self.cache_folder)
-            only_cached = get_library_data("onlycached", self.cache_folder)
+        hed_cache.LIBRARY_DATA_URL = self.url
+        standard = get_library_data("", self.cache_folder)
+        only_cached = get_library_data("onlycached", self.cache_folder)
         self.assertEqual(standard, URL_REGISTRY[""])
         self.assertIn("HED_0011644", standard["retired_ids"])
         # The stale cached copy was not consulted and has been replaced by the fetched registry.
@@ -73,9 +75,9 @@ class TestGetLibraryData(unittest.TestCase):
 
     def test_falls_back_to_cached_copy(self):
         self._write_json(self.cache_registry, CACHED_REGISTRY)
-        with patch.object(hed_cache, "LIBRARY_DATA_URL", self.unreachable_url):
-            standard = get_library_data("", self.cache_folder)
-            only_cached = get_library_data("onlycached", self.cache_folder)
+        hed_cache.LIBRARY_DATA_URL = self.unreachable_url
+        standard = get_library_data("", self.cache_folder)
+        only_cached = get_library_data("onlycached", self.cache_folder)
         self.assertEqual(standard, CACHED_REGISTRY[""])
         self.assertEqual(only_cached, CACHED_REGISTRY["onlycached"])
         # The failed attempt is remembered, and the cached copy is left as it was.
@@ -84,8 +86,8 @@ class TestGetLibraryData(unittest.TestCase):
         self.assertEqual(self._read_json(self.cache_registry), CACHED_REGISTRY)
 
     def test_falls_back_to_packaged_copy(self):
-        with patch.object(hed_cache, "LIBRARY_DATA_URL", self.unreachable_url):
-            standard = get_library_data("", self.cache_folder)
+        hed_cache.LIBRARY_DATA_URL = self.unreachable_url
+        standard = get_library_data("", self.cache_folder)
         packaged = self._read_json(PACKAGED_REGISTRY)
         self.assertEqual(standard, packaged[""])
         self.assertEqual(standard["id_range"], [10000, 39999])
@@ -96,15 +98,15 @@ class TestGetLibraryData(unittest.TestCase):
     def test_url_body_must_be_an_object(self):
         self._write_json(self.url_registry, ["not", "a", "registry"])
         self._write_json(self.cache_registry, CACHED_REGISTRY)
-        with patch.object(hed_cache, "LIBRARY_DATA_URL", self.url):
-            standard = get_library_data("", self.cache_folder)
+        hed_cache.LIBRARY_DATA_URL = self.url
+        standard = get_library_data("", self.cache_folder)
         self.assertEqual(standard, CACHED_REGISTRY[""])
         self.assertEqual(self._read_json(self.cache_registry), CACHED_REGISTRY)
 
     def test_unknown_library_is_empty(self):
         self._write_json(self.url_registry, URL_REGISTRY)
-        with patch.object(hed_cache, "LIBRARY_DATA_URL", self.url):
-            self.assertEqual(get_library_data("nosuchlib", self.cache_folder), {})
+        hed_cache.LIBRARY_DATA_URL = self.url
+        self.assertEqual(get_library_data("nosuchlib", self.cache_folder), {})
 
     def test_packaged_registry_lists_retired_ids(self):
         packaged = self._read_json(PACKAGED_REGISTRY)

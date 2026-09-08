@@ -48,7 +48,7 @@ class TemporalEvent:
                 if duration is None:
                     raise HedFileError(
                         "DurationNotConvertible",
-                        f"Duration tag '{item}' on row {self.start_index} cannot be converted to default units "
+                        f"Duration tag '{item}' at event index {self.start_index} cannot be converted to default units "
                         f"(non-numeric value, invalid unit, or a unit with no conversionFactor), "
                         f"so the end time cannot be computed.",
                         "",
