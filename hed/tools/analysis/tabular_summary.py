@@ -238,13 +238,10 @@ class TabularSummary:
                 self.value_info[col_name][0] = self.value_info[col_name][0] + len(col_values)
                 self.value_info[col_name][1] = self.value_info[col_name][1] + 1
             else:
-                cat_counts = self.categorical_counts.get(col_name, [0, 0])
-                cat_counts[0] += len(col_values)
-                cat_counts[1] += 1
-                self.categorical_counts[col_name] = cat_counts
+                # _update_categorical accumulates, so pass only this dataframe's counts.
                 col_values = col_values.astype(str)
                 values = col_values.value_counts(ascending=True)
-                self._update_categorical(col_name, values, cat_counts)
+                self._update_categorical(col_name, values, [len(col_values), 1])
 
     def _update_dict_categorical(self, col_dict):
         """Update this summary with the categorical information in the dictionary from another summary.

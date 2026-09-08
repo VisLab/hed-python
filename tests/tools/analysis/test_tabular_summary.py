@@ -303,6 +303,20 @@ class Test(unittest.TestCase):
             self.assertGreater(counts[0], 0, f"Column {col_name} should have event count > 0")
             self.assertGreaterEqual(counts[1], 1, f"Column {col_name} should have been updated at least once")
 
+    def test_categorical_counts_not_doubled(self):
+        # categorical_counts must equal [total rows, files seen], accumulated across updates
+        stern_df = get_new_dataframe(self.stern_map_path)
+        n_rows = len(stern_df)
+
+        dict1 = TabularSummary()
+        dict1.update(stern_df)
+        for col_name, counts in dict1.categorical_counts.items():
+            self.assertEqual(counts, [n_rows, 1], f"{col_name} counts after one update")
+
+        dict1.update(stern_df)
+        for col_name, counts in dict1.categorical_counts.items():
+            self.assertEqual(counts, [2 * n_rows, 2], f"{col_name} counts after two updates")
+
     def test_categorical_limit_in_summary(self):
         # Test that categorical_limit appears in the summary output
         dict1 = TabularSummary(categorical_limit=10)
