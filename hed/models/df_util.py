@@ -7,6 +7,7 @@ from functools import partial
 
 import pandas as pd
 
+from hed.errors.exceptions import HedFileError
 from hed.models.definition_dict import DefinitionDict
 from hed.models.hed_string import HedString
 from hed.models.model_constants import DefTagNames
@@ -235,6 +236,11 @@ def split_delay_tags(series, hed_schema, onsets):
             "onset": the updated onsets
             "original_index": the original source line. Multiple lines can have the same original source line.
 
+    Raises:
+        HedFileError: If a Delay tag cannot be converted to default units (non-numeric value, invalid unit,
+                      or a unit with no conversionFactor such as 'Delay/3 month' in HED 8.4.0). The message
+                      names the tag and its row. Validation callers check for this before calling.
+
     Note: This dataframe may be longer than the original series, but it will never be shorter.
     """
     if series is None or onsets is None:
@@ -250,7 +256,15 @@ def split_delay_tags(series, hed_schema, onsets):
         duration_tags = delay_string.find_top_level_tags({DefTagNames.DELAY_KEY})
         to_remove = []
         for tag, group in duration_tags:
-            onset_mod = tag.value_as_default_unit() + float(onsets[i])
+            delay = tag.value_as_default_unit()
+            if delay is None:
+                raise HedFileError(
+                    "DelayNotConvertible",
+                    f"Delay tag '{tag}' at index {i} of the data cannot be converted to default units (non-numeric "
+                    f"value, invalid unit, or a unit with no conversionFactor), so the delayed onset cannot be computed.",
+                    "",
+                )
+            onset_mod = delay + float(onsets[i])
             to_remove.append(group)
             insert_index = split_df["original_index"].index.max() + 1
             split_df.loc[insert_index] = {"HED": str(group), "onset": onset_mod, "original_index": i}

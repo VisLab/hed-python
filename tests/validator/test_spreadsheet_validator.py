@@ -214,6 +214,33 @@ class TestSpreadsheetValidation(unittest.TestCase):
         self.assertEqual(len(issues2), 1)
         self.assertEqual(issues1[0]["code"], ValidationErrors.ONSETS_UNORDERED)
 
+    def test_delay_without_conversion_factor(self):
+        # 'Delay/3 month' is valid HED but month has no conversionFactor, so the delayed onset cannot be
+        # computed. Validation must report this as a TEMPORAL_TAG_ERROR on that row, not raise, and the
+        # onset checks must still run for the rest of the file.
+        def_dict = "(Definition/Def1, (Event))"
+        tsv = {
+            "onset": [0.0, 1.0, 2.0, 3.0],
+            "duration": ["n/a", "n/a", "n/a", "n/a"],
+            "HED": [
+                "(Def/Def1, Onset)",
+                "(Delay/3 month, (Red))",
+                "(Delay/3 s, (Green))",
+                "(Def/Def1, Offset)",
+            ],
+        }
+        issues = self.validator.validate(TabularInput(pd.DataFrame(tsv)), def_dicts=def_dict)
+        self.assertEqual(len(issues), 1, issues)
+        self.assertEqual(issues[0]["code"], ValidationErrors.TEMPORAL_TAG_ERROR)
+        self.assertEqual(issues[0][ErrorContext.ROW], 3)  # 1-based, plus the header row
+        self.assertIn("Delay/3 month", issues[0]["message"])
+
+        # An unmatched Offset later in the file is still reported, so the onset checks did run.
+        tsv["HED"][3] = "(Def/Def1, Offset), (Def/Def1, Offset)"
+        issues = self.validator.validate(TabularInput(pd.DataFrame(tsv)), def_dicts=def_dict)
+        codes = [issue["code"] for issue in issues]
+        self.assertGreaterEqual(codes.count(ValidationErrors.TEMPORAL_TAG_ERROR), 2, codes)
+
     def _small_events(self):
         return TabularInput(pd.DataFrame({"onset": [1.0, 2.0], "duration": [0, 0], "HED": ["Red", "InvalidTagXYZ"]}))
 

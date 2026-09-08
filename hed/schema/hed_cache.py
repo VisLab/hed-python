@@ -668,53 +668,129 @@ def _get_json_with_etag(url, etag_cache, force_refresh=False, cache_time_thresho
 def get_library_data(library_name, cache_folder=None) -> dict:
     """Retrieve the library data for the given library.
 
-    Currently, this is just the valid ID range.
+    The registry is library_data.json on hed-schemas main. For each library (keyed by name, "" for
+    the standard schema) it records the valid hedId range as "id_range" and, where elements have
+    been removed, the ids that must never be assigned again as "retired_ids" - an object keyed by
+    hedId (e.g. "HED_0011644") whose values carry label, section, last_version, removed_in, reason,
+    an optional replacement, and a reference.
+
+    Sources, in order:
+      1. The GitHub copy (LIBRARY_DATA_URL), which is authoritative. It is fetched once per
+         process (this function is cached) with the same conditional-request machinery as
+         get_available_hed_versions(): no network call if this URL was checked within
+         AVAILABLE_VERSIONS_TIME_THRESHOLD seconds, otherwise a conditional GET that GitHub
+         answers with 304 when nothing changed. A successful fetch is written to
+         <cache_folder>/library_data/library_data.json for use offline.
+      2. That cached copy, when the URL is unreachable.
+      3. The copy packaged with hedtools, when there is no cached copy either.
 
     Parameters:
         library_name (str): The schema name. "" for standard schema.
         cache_folder (str): The cache folder to use if not using the default.
 
     Returns:
-        dict: The data for a specific library.
+        dict: The data for a specific library. Empty if no source could be read or none of them
+              lists this library.
     """
     if cache_folder is None:
         cache_folder = HED_CACHE_DIRECTORY
 
     cache_lib_data_folder = os.path.join(cache_folder, "library_data")
-
     local_library_data_filename = os.path.join(cache_lib_data_folder, "library_data.json")
+
+    library_data = _fetch_library_data(cache_folder, local_library_data_filename)
+
+    if library_data is None:
+        library_data = _read_library_data_file(local_library_data_filename)
+
+    if library_data is None:
+        try:
+            with CacheLock(cache_lib_data_folder, write_time=False):
+                _copy_installed_folder_to_cache(cache_lib_data_folder, "library_data")
+        except (OSError, CacheError):
+            pass
+        library_data = _read_library_data_file(local_library_data_filename)
+
+    if library_data is None:
+        # The cache folder could not be written to; read the packaged copy where it is.
+        installed_filename = os.path.join(INSTALLED_CACHE_LOCATION, "library_data", "library_data.json")
+        library_data = _read_library_data_file(installed_filename)
+
+    if library_data is None:
+        return {}
+    specific_library = library_data.get(library_name)
+    if not isinstance(specific_library, dict):
+        return {}
+    return specific_library
+
+
+def _fetch_library_data(cache_folder, local_library_data_filename):
+    """Fetch library_data.json from hed-schemas main and store it in the cache.
+
+    Parameters:
+        cache_folder (str): The cache folder holding the per-URL ETag cache
+                            (AVAILABLE_VERSIONS_CACHE_FILENAME).
+        local_library_data_filename (str): Where to write the fetched registry.
+
+    Returns:
+        dict or None: The parsed registry, or None if the URL could not be reached or did not
+                      hold a JSON object. Failures are never raised: the caller falls back to
+                      the cached and packaged copies.
+    """
+    url_cache = _read_available_versions_cache(cache_folder)
+    cache_before = json.dumps(url_cache, sort_keys=True)
     try:
-        with open(local_library_data_filename) as file:
-            library_data = json.load(file)
-        specific_library = library_data[library_name]
-        return specific_library
-    except (OSError, CacheError, ValueError, KeyError):
-        pass
+        library_data = _get_json_with_etag(
+            LIBRARY_DATA_URL, url_cache, cache_time_threshold=AVAILABLE_VERSIONS_TIME_THRESHOLD
+        )
+    except (OSError, ValueError, URLError):
+        library_data = None
+    if json.dumps(url_cache, sort_keys=True) != cache_before:
+        _write_available_versions_cache(cache_folder, url_cache)
+    if not isinstance(library_data, dict):
+        return None
+    _write_library_data_file(local_library_data_filename, library_data)
+    return library_data
 
+
+def _read_library_data_file(filename):
+    """Read a library_data.json copy.
+
+    Parameters:
+        filename (str): The file to read.
+
+    Returns:
+        dict or None: The parsed registry, or None if the file is absent, unreadable, or not a
+                      JSON object.
+    """
     try:
-        with CacheLock(cache_lib_data_folder, write_time=False):
-            _copy_installed_folder_to_cache(cache_lib_data_folder, "library_data")
-
-        with open(local_library_data_filename) as file:
+        with open(filename, encoding="utf-8") as file:
             library_data = json.load(file)
-        specific_library = library_data[library_name]
-        return specific_library
-    except (OSError, CacheError, ValueError, KeyError):
-        pass
+    except (OSError, ValueError):
+        return None
+    if not isinstance(library_data, dict):
+        return None
+    return library_data
 
+
+def _write_library_data_file(filename, library_data):
+    """Best-effort write of the registry to the cache, via a temp file and rename.
+
+    Any failure is ignored: the cached copy is only the offline fallback, so an unwritable cache
+    folder must not turn a successful fetch into an error.
+
+    Parameters:
+        filename (str): The cache file to write.
+        library_data (dict): The registry to store.
+    """
+    tmp_filename = filename + ".tmp"
     try:
-        with CacheLock(cache_lib_data_folder):
-            # if this fails it'll fail to load in the next step
-            _cache_specific_url(LIBRARY_DATA_URL, local_library_data_filename)
-        with open(local_library_data_filename) as file:
-            library_data = json.load(file)
-        specific_library = library_data[library_name]
-        return specific_library
-    except (OSError, CacheError, ValueError, URLError, KeyError):
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(tmp_filename, "w", encoding="utf-8") as file:
+            json.dump(library_data, file, indent=2)
+        os.replace(tmp_filename, filename)
+    except OSError:
         pass
-
-    # This failed to get any data for some reason
-    return {}
 
 
 def _copy_installed_folder_to_cache(cache_folder, sub_folder=""):

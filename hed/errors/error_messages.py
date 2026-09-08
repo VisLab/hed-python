@@ -49,6 +49,14 @@ def val_error_temporal_tag_no_time(tag):
     return f"Cannot have Temporal tags without an 'Onset' column and a time. Found tag: '{tag}'"
 
 
+@hed_tag_error(TemporalErrors.TEMPORAL_TAG_NO_CONVERSION, actual_code=ValidationErrors.TEMPORAL_TAG_ERROR)
+def val_error_temporal_tag_no_conversion(tag):
+    return (
+        f"'{tag}' cannot be converted to default units (non-numeric value, invalid unit, or a unit with "
+        f"no conversionFactor), so its time cannot be computed."
+    )
+
+
 @hed_tag_error(ValidationErrors.TAG_EXTENDED, has_sub_tag=True, default_severity=ErrorSeverity.WARNING)
 def val_error_tag_extended(tag, problem_tag):
     return f"Hed tag is extended. '{problem_tag}' in {tag}"

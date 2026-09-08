@@ -1,8 +1,10 @@
+import copy
 import unittest
 
 import pandas as pd
 
 from hed import HedFileError, load_schema_version
+from hed.schema import HedKey
 from hed.schema.schema_io import df_constants as constants, df_util, hed_id_util
 from hed.schema.schema_io.df_util import get_library_name_and_id
 from hed.schema.schema_io.hed_id_util import (
@@ -221,6 +223,62 @@ class TestUpdateDataframes(unittest.TestCase):
         with self.assertRaises(HedFileError) as ctx:
             update_dataframes_from_schema(schema_dataframes, schema)
         self.assertGreater(len(ctx.exception.issues), 0)
+
+
+class TestRetiredIds(unittest.TestCase):
+    """Retired hedIds (hed-schemas library_data.json "retired_ids") are never handed out again.
+
+    HED_0011644 (uV, removed in 8.5.0) is the live case: it is the lowest free unit id once uV is gone,
+    so without the exclusion the next new unit would silently reuse it.
+    """
+
+    RETIRED_UV = 11644
+
+    def test_get_retired_ids_standard(self):
+        retired = hed_id_util._get_retired_ids("")
+        self.assertIn(self.RETIRED_UV, retired)
+        self.assertIn(10308, retired)  # hedId attribute, moved before the 8.3.0 release
+
+    def test_get_retired_ids_without_entries(self):
+        # score is registered but has no retired ids; testlib is not registered at all.
+        self.assertEqual(hed_id_util._get_retired_ids("score"), set())
+        self.assertEqual(hed_id_util._get_retired_ids("testlib"), set())
+
+    def test_range_still_contains_retired_id(self):
+        # The valid range is unchanged, so an older spreadsheet that still carries uV verifies clean.
+        self.assertIn(self.RETIRED_UV, hed_id_util._get_hedid_range("", constants.UNIT_KEY))
+        unit_df = hed_schema_global.get_as_dataframes()[constants.UNIT_KEY]
+        self.assertIn(f"HED_{self.RETIRED_UV:07d}", list(unit_df[constants.hed_id]))
+        errors = _verify_hedid_matches(
+            hed_schema_global.units, unit_df, hed_id_util._get_hedid_range("", constants.UNIT_KEY)
+        )
+        self.assertEqual(errors, [])
+
+    def test_assign_skips_retired_id(self):
+        # Mimic 8.5.0: remove uV from 8.4.0 and take the id away from month (HED_0011645), the
+        # highest unit id. The lowest free unit id is then 11644, which must not be reused.
+        schema = copy.deepcopy(hed_schema_global)
+        uv_entry = schema.units["uV"]
+        self.assertEqual(uv_entry.attributes[HedKey.HedID], f"HED_{self.RETIRED_UV:07d}")
+        uv_key = next(key for key, entry in schema.units.all_names.items() if entry is uv_entry)
+        del schema.units.all_names[uv_key]
+        schema.units.all_entries.remove(uv_entry)
+        del uv_entry.unit_class_entry.units["uV"]
+        month_entry = schema.units["month"]
+        month_id = month_entry.attributes.pop(HedKey.HedID)
+        self.assertEqual(month_id, "HED_0011645")
+
+        dataframes = schema.get_as_dataframes()
+        unit_df = dataframes[constants.UNIT_KEY]
+        self.assertNotIn("uV", list(unit_df[constants.name]))
+        month_rows = unit_df[unit_df[constants.name] == "month"]
+        self.assertEqual(list(month_rows[constants.hed_id]), [""])
+
+        updated = update_dataframes_from_schema(dataframes, schema, assign_missing_ids=True)
+        unit_df = updated[constants.UNIT_KEY]
+        month_rows = unit_df[unit_df[constants.name] == "month"]
+        self.assertEqual(list(month_rows[constants.hed_id]), ["HED_0011645"])
+        self.assertNotIn(f"HED_{self.RETIRED_UV:07d}", list(unit_df[constants.hed_id]))
 
 
 if __name__ == "__main__":

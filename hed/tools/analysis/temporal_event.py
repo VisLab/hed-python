@@ -1,5 +1,6 @@
 """A single event process with starting and ending times."""
 
+from hed.errors.exceptions import HedFileError
 from hed.models.hed_group import HedGroup
 from hed.models.model_constants import DefTagNames
 
@@ -43,7 +44,16 @@ class TemporalEvent:
                 to_remove.append(item)
             elif item.short_base_tag == DefTagNames.DURATION_KEY:
                 to_remove.append(item)
-                self.end_time = self.start_time + item.value_as_default_unit()
+                duration = item.value_as_default_unit()
+                if duration is None:
+                    raise HedFileError(
+                        "DurationNotConvertible",
+                        f"Duration tag '{item}' at event index {self.start_index} cannot be converted to default units "
+                        f"(non-numeric value, invalid unit, or a unit with no conversionFactor), "
+                        f"so the end time cannot be computed.",
+                        "",
+                    )
+                self.end_time = self.start_time + duration
             elif item.short_base_tag == DefTagNames.DEF_KEY:
                 self.anchor = item.short_tag
         contents.remove(to_remove)

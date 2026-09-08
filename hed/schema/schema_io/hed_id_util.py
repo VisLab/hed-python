@@ -56,6 +56,32 @@ def _get_hedid_range(schema_name, df_key):
     return set(range(final_start, final_end))
 
 
+def _get_retired_ids(schema_name):
+    """Get the set of retired HedId numbers for this schema name.
+
+    Retired ids are recorded in hed-schemas library_data.json under "retired_ids", keyed by hedId
+    (for example "HED_0011644"). A retired id is never assigned again, so callers that hand out new
+    ids subtract this set from the free range. Existing spreadsheets may still carry a retired id for
+    an element that has since been removed, so this set is not used when verifying existing ids.
+
+    Parameters:
+        schema_name(str): The known schema name with an assigned id range.
+
+    Returns:
+        set: The integer values of the retired ids. Empty if none are recorded for this schema.
+    """
+    library_data = get_library_data(schema_name)
+    if not library_data:
+        return set()
+    retired_ids = set()
+    for hed_id in library_data.get("retired_ids", {}):
+        try:
+            retired_ids.add(int(hed_id.removeprefix("HED_")))
+        except (ValueError, AttributeError):
+            continue
+    return retired_ids
+
+
 def get_all_ids(df):
     """Returns a set of all unique hedIds in the dataframe
 
@@ -115,11 +141,14 @@ def update_dataframes_from_schema(dataframes, schema, schema_name="", assign_mis
     output_dfs = Schema2DF().process_schema(schema, save_merged=False)
 
     if assign_missing_ids:
-        # 3: Add any HED ID's as needed to these generated dfs
+        # 3: Add any HED ID's as needed to these generated dfs.
+        # Retired ids are removed from the pool here, not in _get_hedid_range, so that step 1 still
+        # accepts a spreadsheet that carries a retired id for an element removed in a later version.
+        retired_ids = _get_retired_ids(schema_name)
         for df_key, df in output_dfs.items():
             if df_key == constants.STRUCT_KEY or df_key in constants.DF_EXTRAS:
                 continue
-            unused_tag_ids = _get_hedid_range(schema_name, df_key)
+            unused_tag_ids = _get_hedid_range(schema_name, df_key) - retired_ids
 
             # If no errors, assign new HED ID's
             assign_hed_ids_section(df, unused_tag_ids)

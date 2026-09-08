@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from hed import DefinitionDict, load_schema_version
+from hed import DefinitionDict, HedFileError, load_schema_version
 from hed.models.df_util import (
     _filter_by_index_list,
     _handle_curly_braces_refs,
@@ -683,3 +683,21 @@ class TestSplitDelayTags(unittest.TestCase):
             )
         )
         self.assertTrue(result.original_index.equals(pd.Series([0, 1, 2, 0, 1])))
+
+    def test_delay_without_conversion_factor_raises(self):
+        # month has no conversionFactor in 8.4.0, so the delayed onset cannot be computed. The error names
+        # the tag and the row instead of silently adding the raw number (3 months is not 3 seconds).
+        series = pd.Series(["Tag1,Tag2", "Tag3,(Delay/3 month,(Tag5))"])
+        onsets = pd.Series([1.0, 2.0])
+        with self.assertRaises(HedFileError) as ctx:
+            split_delay_tags(series, self.schema, onsets)
+        self.assertEqual(ctx.exception.code, "DelayNotConvertible")
+        self.assertIn("Delay/3 month", ctx.exception.message)
+        self.assertIn("index 1", ctx.exception.message)
+
+    def test_delay_with_invalid_unit_raises(self):
+        # An invalid unit or a non-numeric value cannot be converted either (these used to raise TypeError
+        # and ValueError from inside the arithmetic).
+        for bad in ("(Delay/3 cm,(Tag5))", "(Delay/abc s,(Tag5))", "(Delay/3 MS,(Tag5))"):
+            with self.assertRaises(HedFileError, msg=bad):
+                split_delay_tags(pd.Series([bad]), self.schema, pd.Series([1.0]))

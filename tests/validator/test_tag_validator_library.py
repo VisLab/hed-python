@@ -200,7 +200,7 @@ class IndividualHedTagsShort(TestHed3):
             "correctUnitScientific": True,
             "correctPluralUnit": True,
             "correctNoPluralUnit": True,
-            "correctNonSymbolCapitalizedUnit": True,
+            "correctNonSymbolCapitalizedUnit": False,  # unit names are case-sensitive: MilliSeconds is invalid
             "correctSymbolCapitalizedUnit": True,
             "incorrectUnit": False,
             "incorrectPluralUnit": False,
@@ -226,7 +226,9 @@ class IndividualHedTagsShort(TestHed3):
             "correctUnitScientific": [],
             "correctPluralUnit": [],
             "correctNoPluralUnit": [],
-            "correctNonSymbolCapitalizedUnit": [],
+            "correctNonSymbolCapitalizedUnit": self.format_error(
+                ValidationErrors.UNITS_INVALID, tag=0, units=legal_time_units
+            ),
             "correctSymbolCapitalizedUnit": [],
             "incorrectUnit": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_time_units),
             "incorrectPluralUnit": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_freq_units),
