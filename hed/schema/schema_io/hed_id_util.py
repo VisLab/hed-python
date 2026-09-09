@@ -98,6 +98,70 @@ def get_all_ids(df):
     return None
 
 
+def remove_retired_rows(dataframes, schema, schema_name=""):
+    """Drop spreadsheet rows for elements that are gone from the schema and whose hedId is retired.
+
+    A schema spreadsheet mirrors the schema, and hed-schemas library_data.json "retired_ids" is the
+    permanent record of removed elements, so a row whose element no longer exists and whose hedId is
+    listed there is removed rather than reported as a mismatch. A row is kept when its element is still
+    in the schema (an older version being reprocessed) or when its hedId is not retired (that row is a
+    genuine mismatch and is reported by :func:`update_dataframes_from_schema`).
+
+    Parameters:
+        dataframes (dict[str, pd.DataFrame]): Schema spreadsheet dataframes, modified in place.
+        schema (HedSchema): The schema the spreadsheet is being brought in line with.
+        schema_name (str): The registered schema name; the schema's library name when empty.
+
+    Returns:
+        list[dict]: One entry per removed row with keys ``section`` (the dataframe key), ``label``,
+            ``hedId``, and the registry fields ``removed_in``, ``reason``, and ``replacement`` (empty
+            strings when the registry does not record them).
+    """
+    if not schema_name:
+        schema_name = schema.library
+    library_data = get_library_data(schema_name) or {}
+    retired = library_data.get("retired_ids", {})
+    if not retired:
+        return []
+
+    removed = []
+    for df_key, df in dataframes.items():
+        section_key = constants.section_mapping_hed_id.get(df_key)
+        if df_key in constants.DF_EXTRAS or not section_key or df is None:
+            continue
+        section = schema[section_key]
+        drop_indexes = []
+        for row_index, row in df.iterrows():
+            df_id = row[constants.hed_id]
+            if not isinstance(df_id, str) or df_id not in retired:
+                continue
+            label = row[constants.name]
+            if section.get(_schema_label(label)):
+                continue
+            record = retired[df_id] or {}
+            removed.append(
+                {
+                    "section": df_key,
+                    "label": label,
+                    "hedId": df_id,
+                    "removed_in": record.get("removed_in") or "",
+                    "reason": record.get("reason") or "",
+                    "replacement": record.get("replacement") or "",
+                }
+            )
+            drop_indexes.append(row_index)
+        if drop_indexes:
+            dataframes[df_key] = df.drop(index=drop_indexes).reset_index(drop=True)
+    return removed
+
+
+def _schema_label(label):
+    """Return the spreadsheet label in the form the schema section is keyed by (``-#`` becomes ``/#``)."""
+    if label.endswith("-#"):
+        return label.replace("-#", "/#")
+    return label
+
+
 def update_dataframes_from_schema(dataframes, schema, schema_name="", assign_missing_ids=False):
     """Write out schema as a dataframe, then merge in extra columns from dataframes.
 
@@ -179,9 +243,7 @@ def _verify_hedid_matches(section, df, unused_tag_ids):
     for row_number, row in df.iterrows():
         if not any(row):
             continue
-        label = row[constants.name]
-        if label.endswith("-#"):
-            label = label.replace("-#", "/#")
+        label = _schema_label(row[constants.name])
         df_id = row[constants.hed_id]
         if not isinstance(df_id, str):
             df_id = ""
