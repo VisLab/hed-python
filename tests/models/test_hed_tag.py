@@ -223,3 +223,50 @@ class TestSchemaUtilityFunctions(TestHedBase):
         # An explicitly listed default still returns its own entry.
         duration_default = HedTag("Duration/3 s", hed_schema=self.hed_schema).default_unit
         self.assertEqual(duration_default.name, "s")
+
+    def test_compound_unit_conversion_factors(self):
+        # A compound SI unit takes one modifier per component; the exponent applies to the prefixed component
+        # and denominator exponents are negative (spec item 4). Exact values here use only modifiers whose
+        # factor 8.4.0 spells exactly (k, c, m); mega and up, micro and down are written 10e6 / 10e-6 there.
+        self.assertAlmostEqual(3000.0, HedTag("Speed/3 km-per-s", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertAlmostEqual(3000.0, HedTag("Speed/3 m-per-ms", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertAlmostEqual(0.03, HedTag("Speed/3 cm-per-s", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertAlmostEqual(2e-9, HedTag("Volume/2 mm^3", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertAlmostEqual(2e-6, HedTag("Volume/2 cm^3", hed_schema=self.hed_schema).value_as_default_unit())
+        # cm-per-ms^2 = 0.01 * (0.001)^-2 = 1e4 m-per-s^2
+        self.assertAlmostEqual(
+            1e4, HedTag("Acceleration/1 cm-per-ms^2", hed_schema=self.hed_schema).value_as_default_unit()
+        )
+        self.assertAlmostEqual(
+            0.002, HedTag("Acceleration/2 mm-per-s^2", hed_schema=self.hed_schema).value_as_default_unit()
+        )
+        # Micro: the factor is whatever the schema lists for the "u" modifier (10e-6 in 8.4.0, 1e-6 in 8.5.0).
+        micro = float(self.hed_schema.unit_modifiers["u"].attributes["conversionFactor"])
+        self.assertAlmostEqual(
+            3 * micro, HedTag("Speed/3 um-per-s", hed_schema=self.hed_schema).value_as_default_unit()
+        )
+        self.assertAlmostEqual(
+            3 * 0.01 / micro, HedTag("Speed/3 cm-per-us", hed_schema=self.hed_schema).value_as_default_unit()
+        )
+        # Two modifiers on one component, a wrongly cased or misspelled component: invalid, so no conversion.
+        self.assertIsNone(HedTag("Speed/3 kmm-per-s", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertIsNone(HedTag("Speed/3 m-per-S", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertIsNone(HedTag("Speed/3 m-per-sec", hed_schema=self.hed_schema).value_as_default_unit())
+        # A compound unit without SIUnit (m-per-s^3 in 8.4.0) accepts no modifiers at all.
+        self.assertAlmostEqual(2.0, HedTag("Jerk-rate/2 m-per-s^3", hed_schema=self.hed_schema).value_as_default_unit())
+        self.assertIsNone(HedTag("Jerk-rate/2 mm-per-s^3", hed_schema=self.hed_schema).value_as_default_unit())
+
+    def test_compound_unit_derivative_entries(self):
+        # Every accepted surface form of a compound unit maps back to the listed unit entry.
+        speed_units = self.hed_schema.unit_classes["speedUnits"]
+        for units in ("m-per-s", "km-per-s", "cm-per-us", "m-per-ks", "um-per-ns"):
+            self.assertEqual("m-per-s", speed_units.get_derivative_unit_entry(units).name, units)
+        for units in ("kmm-per-s", "m-per-S", "m-per-sec", "M-per-s", "m-per-s^2", "km-per-h", "-per-s", "m-per-"):
+            self.assertIsNone(speed_units.get_derivative_unit_entry(units), units)
+        volume_units = self.hed_schema.unit_classes["volumeUnits"]
+        self.assertEqual("m^3", volume_units.get_derivative_unit_entry("mm^3").name)
+        self.assertIsNone(volume_units.get_derivative_unit_entry("m^3^3"))
+        self.assertIsNone(volume_units.get_derivative_unit_entry("mm3"))
+        # 20 symbol modifiers plus the unmodified form per component: 21 forms for m^3, 21^2 for m-per-s.
+        self.assertEqual(21, len(self.hed_schema.units["m^3"].derivative_units))
+        self.assertEqual(441, len(self.hed_schema.units["m-per-s"].derivative_units))

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
+import math
 from typing import Any
 
 import inflect
@@ -283,32 +285,95 @@ class UnitEntry(HedSchemaEntry):
         Parameters:
             schema (HedSchema): The schema rules come from.
 
+        Notes:
+            Unit strings are case-sensitive, so every key is built from the name exactly as listed.
+            Unit names may be pluralized; unit symbols never are. A compound SI unit (one whose name
+            contains ``-per-`` or ``^``, such as ``m-per-s^2``) is expanded component-wise: each
+            component may carry one SI modifier, so ``cm-per-us`` and ``mm^3`` are accepted while
+            ``kmm-per-s`` is not. Every other unit accepts one modifier in front of the whole name.
         """
         super().finalize_entry(schema)
         self.unit_modifiers = schema._get_modifiers_for_unit(self.name)
+        components = self._compound_components()
+        if components is not None:
+            self.derivative_units = self._compound_derivative_units(components)
+            return
+
         derivative_units = {}
-        # Unit strings are case-sensitive, so every key is built from the name exactly as listed.
-        # Unit names may be pluralized; unit symbols never are.
         if self.has_attribute(HedKey.UnitSymbol):
             base_plural_units = {self.name}
         else:
             base_plural_units = {self.name, pluralize.plural(self.name)}
 
+        base_factor = self._parse_factor(self.attributes)
         for derived_unit in base_plural_units:
-            derivative_units[derived_unit] = self._get_conversion_factor(None)
+            derivative_units[derived_unit] = base_factor
             for modifier in self.unit_modifiers:
-                derivative_units[modifier.name + derived_unit] = self._get_conversion_factor(modifier_entry=modifier)
+                derivative_units[modifier.name + derived_unit] = base_factor * self._parse_factor(modifier.attributes)
         self.derivative_units = derivative_units
 
-    def _get_conversion_factor(self, modifier_entry):
-        base_factor = modifier_factor = 1.0
+    def _compound_components(self):
+        """Split a compound SI unit name into its components.
+
+        Returns:
+            Union[list[tuple[str, int]], None]: ``(base, exponent)`` per component, in name order, when this
+                unit has SIUnit and its name contains ``-per-`` or ``^``; None for every other unit. The
+                first component is the numerator, the rest are denominators. None is also returned when
+                a component is not of the form ``base`` or ``base^n`` with an integer ``n``, so a name the
+                rule does not describe falls back to the whole-string path.
+        """
+        if not self.has_attribute(HedKey.SIUnit) or ("-per-" not in self.name and "^" not in self.name):
+            return None
+        components = []
+        for component in self.name.split("-per-"):
+            base, _, exponent = component.partition("^")
+            if not base:
+                return None
+            if not exponent:
+                components.append((base, 1))
+                continue
+            try:
+                components.append((base, int(exponent)))
+            except ValueError:
+                return None
+        return components
+
+    def _compound_derivative_units(self, components):
+        """Build the derivative map of a compound unit, one optional modifier per component.
+
+        Parameters:
+            components (list[tuple[str, int]]): Output of :meth:`_compound_components`.
+
+        Returns:
+            dict[str, float]: Every accepted surface form mapped to its conversion factor. The factor is
+                the listed factor times the product of each component's modifier factor raised to the
+                component's exponent, negative for denominator components: ``cm-per-us`` in speed is
+                ``1.0 * 0.01 * (1e-6) ** -1 = 10000`` m-per-s and ``mm^3`` is ``1e-9`` m^3.
+        """
+        base_factor = self._parse_factor(self.attributes)
+        modifier_choices = [("", 1.0)] + [
+            (modifier.name, self._parse_factor(modifier.attributes)) for modifier in self.unit_modifiers
+        ]
+        derivative_units = {}
+        for choice in itertools.product(modifier_choices, repeat=len(components)):
+            parts = []
+            factor = base_factor
+            for index, ((base, exponent), (prefix, modifier_factor)) in enumerate(
+                zip(components, choice, strict=False)
+            ):
+                parts.append(prefix + base + (f"^{exponent}" if exponent != 1 else ""))
+                signed_exponent = exponent if index == 0 else -exponent
+                factor *= math.pow(modifier_factor, signed_exponent)
+            derivative_units["-per-".join(parts)] = factor
+        return derivative_units
+
+    @staticmethod
+    def _parse_factor(attributes):
+        """Return the conversionFactor in *attributes* as a float, or 1.0 when absent or unparsable."""
         try:
-            base_factor = float(self.attributes.get(HedKey.ConversionFactor, "1.0").replace("^", "e"))
-            if modifier_entry:
-                modifier_factor = float(modifier_entry.attributes.get(HedKey.ConversionFactor, "1.0").replace("^", "e"))
+            return float(attributes.get(HedKey.ConversionFactor, "1.0").replace("^", "e"))
         except (ValueError, AttributeError):
-            pass  # Just default to 1.0
-        return base_factor * modifier_factor
+            return 1.0
 
     def get_conversion_factor(self, unit_name):
         """Returns the conversion factor from combining this unit with the specified modifier
