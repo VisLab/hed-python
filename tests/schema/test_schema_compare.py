@@ -431,7 +431,8 @@ class TestDerivableUnitRemoval(unittest.TestCase):
         cls.schema1 = load_schema_version("8.4.0")
         lines = cls.schema1.get_as_mediawiki_string().split("\n")
         kept = [line for line in lines if not line.startswith("** uV ") and not line.startswith("** mph ")]
-        assert len(kept) == len(lines) - 2
+        if len(kept) != len(lines) - 2:
+            raise AssertionError(f"expected to drop exactly the uV and mph lines, dropped {len(lines) - len(kept)}")
         cls.schema2 = from_string("\n".join(kept), schema_format=".mediawiki")
         cls.changes = SchemaComparer(cls.schema1, cls.schema2).gather_schema_changes()
 
@@ -523,6 +524,17 @@ class TestPrettyPrintChangeDict(unittest.TestCase):
                 self.assertEqual(lines[index - 1], "", "blank line before section header")
         for line in lines:
             self.assertFalse(line.startswith(" - "), "no leading space before bullets")
+
+    def test_sections_follow_section_entry_names_order(self):
+        # A dict built elsewhere may list sections in any order; output follows SECTION_ENTRY_NAMES, then extras.
+        reversed_dict = {
+            "SomethingElse": [{"change_type": "Unknown", "change": "x", "tag": "x"}],
+            HedSectionKey.Units: [{"change_type": "Minor", "change": "Item A added", "tag": "A"}],
+            HedSectionKey.Tags: [{"change_type": "Minor", "change": "Item B added", "tag": "B"}],
+        }
+        result = self.comp.pretty_print_change_dict(reversed_dict, title="")
+        self.assertLess(result.index("**Tags:**"), result.index("**Units:**"))
+        self.assertLess(result.index("**Units:**"), result.index("**SomethingElse:**"))
 
     def test_markdown_without_title_has_no_heading(self):
         result = self.comp.pretty_print_change_dict(self.changes, title="")

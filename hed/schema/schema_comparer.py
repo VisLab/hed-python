@@ -300,14 +300,16 @@ class SchemaComparer:
 
         Returns:
             str: Formatted string representation of the changes, ending in a single newline. Sections
-                 are in the order of SECTION_ENTRY_NAMES, changes within each section sorted by
-                 severity (Major -> Minor -> Patch -> Unknown). Empty if change_dict is empty.
+                 are in the order of SECTION_ENTRY_NAMES whatever the order of change_dict (keys not in
+                 SECTION_ENTRY_NAMES follow, in dict order); changes within each section keep the order
+                 given, which is by severity (Major -> Minor -> Patch -> Unknown) for gather_schema_changes
+                 output. Empty if change_dict is empty.
 
         Example:
             >>> changes = comparer.gather_schema_changes()
             >>> output = comparer.pretty_print_change_dict(
             ...     changes,
-            ...     title="HED 8.3.0 → 8.4.0 Changes",
+            ...     title="HED 8.3.0 -> 8.4.0 Changes",
             ...     use_markdown=True
             ... )
             >>> print(output)
@@ -320,7 +322,10 @@ class SchemaComparer:
         if title:
             final_strings.append(f"## {title}" if use_markdown else title)
             final_strings.append("")
-        for section_key, section_dict in change_dict.items():
+        known_keys = [key for key in self.SECTION_ENTRY_NAMES if key in change_dict]
+        extra_keys = [key for key in change_dict if key not in self.SECTION_ENTRY_NAMES]
+        for section_key in known_keys + extra_keys:
+            section_dict = change_dict[section_key]
             name = self.SECTION_ENTRY_NAMES_PLURAL.get(section_key, section_key)
             line_endings = "**" if use_markdown else ""
             final_strings.append(f"{line_endings}{name}:{line_endings}")
