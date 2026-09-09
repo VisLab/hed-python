@@ -332,7 +332,7 @@ issues = sv.check_attributes()
 issues += sv.check_invalid_characters()
 ```
 
-The eight available checks are:
+The available checks are:
 
 | Method                                | What it validates                                                          |
 | ------------------------------------- | -------------------------------------------------------------------------- |

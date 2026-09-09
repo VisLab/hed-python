@@ -386,12 +386,13 @@ class SchemaValidator:
         )
         issues = []
         unit_classes = self.hed_schema[HedSectionKey.UnitClasses]
+        unit_count = sum(len(unit_class_entry.units) for unit_class_entry in unit_classes.values())
         if not self._redundant_unit_check_applies():
-            self.summary.record_section(HedSectionKey.UnitClasses, 0, len(unit_classes))
+            self.summary.record_section(HedSectionKey.Units, 0, unit_count)
             self.summary.record_issues(0)
             return issues
 
-        self.summary.record_section(HedSectionKey.UnitClasses, len(unit_classes))
+        self.summary.record_section(HedSectionKey.Units, unit_count)
         for unit_class_entry in unit_classes.values():
             for unit_name, unit_entry in unit_class_entry.units.items():
                 derivations = [
