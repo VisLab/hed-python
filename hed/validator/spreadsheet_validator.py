@@ -99,8 +99,8 @@ class SpreadsheetValidator:
             issues += na_issues
             if len(na_issues) > 0:
                 return issues
-            assembled, delay_issues = self._check_delay_conversions(assembled, error_handler, row_adj)
-            issues += delay_issues
+            assembled, time_issues = self._check_time_conversions(assembled, error_handler, row_adj)
+            issues += time_issues
             onsets = df_util.split_delay_tags(assembled, self._schema, onsets)
         else:
             onsets = None
@@ -291,15 +291,20 @@ class SpreadsheetValidator:
 
         return issues
 
-    def _check_delay_conversions(self, assembled, error_handler, row_adj):
-        """Report Delay tags whose value cannot be converted to default units and drop them from a copy.
+    def _check_time_conversions(self, assembled, error_handler, row_adj):
+        """Report Delay and Duration tags whose value cannot be converted to default units.
 
-        df_util.split_delay_tags adds each Delay value to its row's onset and raises HedFileError when the
-        value cannot be converted (non-numeric value, invalid unit, or a unit with no conversionFactor, such as
-        'Delay/3 month' in HED 8.4.0). Validation must return issues instead of raising, so those Delay groups
-        are reported here as TEMPORAL_TAG_ERROR and removed from the copy of the assembled strings that feeds
-        the onset checks. The rows themselves are still validated in full by _run_checks, which reports any
-        invalid unit or value separately.
+        In a timeline file (one with an onset column) a Delay is added to the row's onset and a Duration gives
+        the end time of its group, so both must convert to the default unit of their unit class. A value that
+        cannot be converted (non-numeric value, invalid unit, or a unit with no conversionFactor, such as
+        'Delay/3 month' or 'Duration/3 year' in HED 8.4.0) is reported as TEMPORAL_TAG_ERROR (spec Appendix B
+        cause n). Non-timeline files never reach this check: Duration may use any valid unit there, and Delay
+        is banned by OnsetValidator.check_for_banned_tags.
+
+        Unconvertible Delay groups are also removed from the copy of the assembled strings that feeds the onset
+        checks, because df_util.split_delay_tags raises HedFileError on them and validation must return issues
+        instead. Duration groups are left in place; nothing downstream computes with them. The rows themselves
+        are still validated in full by _run_checks, which reports any invalid unit or value separately.
 
         Parameters:
             assembled (pd.Series): The assembled HED strings, indexed by row.
@@ -312,19 +317,24 @@ class SpreadsheetValidator:
         """
         issues = []
         copied = False
+        time_keys = {key.casefold() for key in DefTagNames.DURATION_KEYS}
         for index, value in assembled.items():
-            if "delay/" not in value.casefold():
+            folded = value.casefold()
+            if "delay/" not in folded and "duration/" not in folded:
                 continue
             hed_obj = HedString(value, self._schema)
             bad_groups = []
             error_handler.push_error_context(ErrorContext.ROW, index + row_adj)
             error_handler.push_error_context(ErrorContext.HED_STRING, hed_obj)
-            for tag, group in hed_obj.find_top_level_tags(anchor_tags={DefTagNames.DELAY_KEY}):
-                if tag.value_as_default_unit() is None:
+            for group in hed_obj.groups():
+                for tag in group.tags():
+                    if tag.short_base_tag.casefold() not in time_keys or tag.value_as_default_unit() is not None:
+                        continue
                     issues += error_handler.format_error_with_context(
                         TemporalErrors.TEMPORAL_TAG_NO_CONVERSION, tag=tag
                     )
-                    bad_groups.append(group)
+                    if tag.short_base_tag == DefTagNames.DELAY_KEY and group not in bad_groups:
+                        bad_groups.append(group)
             error_handler.pop_error_context()
             error_handler.pop_error_context()
             if bad_groups:

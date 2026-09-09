@@ -241,6 +241,54 @@ class TestSpreadsheetValidation(unittest.TestCase):
         codes = [issue["code"] for issue in issues]
         self.assertGreaterEqual(codes.count(ValidationErrors.TEMPORAL_TAG_ERROR), 2, codes)
 
+    def test_duration_without_conversion_factor_in_timeline_file(self):
+        # In a timeline file a Duration gives the end time of its group, so 'Duration/3 year' (year has no
+        # conversionFactor) is a TEMPORAL_TAG_ERROR, as is a non-convertible Duration paired with a
+        # convertible Delay. Convertible durations pass. The Duration group is reported, not dropped, so the
+        # onset checks still see every row.
+        def_dict = "(Definition/Def1, (Event))"
+        tsv = {
+            "onset": [0.0, 1.0, 2.0, 3.0, 4.0],
+            "duration": ["n/a", "n/a", "n/a", "n/a", "n/a"],
+            "HED": [
+                "(Def/Def1, Onset)",
+                "(Duration/3 year, (Red))",
+                "(Delay/2 s, Duration/1 month, (Green))",
+                "(Duration/3 day, (Blue)), (Delay/2 s, Duration/4 hours, (Green))",
+                "(Def/Def1, Offset)",
+            ],
+        }
+        issues = self.validator.validate(TabularInput(pd.DataFrame(tsv)), def_dicts=def_dict)
+        self.assertEqual(len(issues), 2, issues)
+        self.assertEqual([issue["code"] for issue in issues], [ValidationErrors.TEMPORAL_TAG_ERROR] * 2)
+        self.assertEqual([issue[ErrorContext.ROW] for issue in issues], [3, 4])  # 1-based, plus the header row
+        self.assertIn("Duration/3 year", issues[0]["message"])
+        self.assertIn("Duration/1 month", issues[1]["message"])
+
+        # Both halves of a group with a non-convertible Delay and a non-convertible Duration are reported.
+        tsv["HED"][2] = "(Delay/2 month, Duration/1 year, (Green))"
+        issues = self.validator.validate(TabularInput(pd.DataFrame(tsv)), def_dicts=def_dict)
+        messages = " ".join(issue["message"] for issue in issues)
+        self.assertEqual(len(issues), 3, issues)
+        self.assertIn("Delay/2 month", messages)
+        self.assertIn("Duration/1 year", messages)
+
+    def test_duration_any_unit_in_non_timeline_file(self):
+        # Without an onset column nothing is placed on a timeline, so Duration may use any valid time unit
+        # (participants.tsv style). Delay stays banned there, reported by the existing no-onset check.
+        df = pd.DataFrame(
+            {"participant_id": ["sub-01", "sub-02"], "HED": ["(Duration/3 year, (Red))", "(Duration/6 month, (Blue))"]}
+        )
+        issues = self.validator.validate(TabularInput(df))
+        self.assertEqual(
+            [issue["code"] for issue in issues if issue["code"] != ValidationErrors.HED_UNKNOWN_COLUMN], []
+        )
+
+        df = pd.DataFrame({"participant_id": ["sub-01"], "HED": ["(Delay/3 year, (Red))"]})
+        issues = self.validator.validate(TabularInput(df))
+        codes = [issue["code"] for issue in issues]
+        self.assertIn(ValidationErrors.TEMPORAL_TAG_ERROR, codes)
+
     def _small_events(self):
         return TabularInput(pd.DataFrame({"onset": [1.0, 2.0], "duration": [0, 0], "HED": ["Red", "InvalidTagXYZ"]}))
 
