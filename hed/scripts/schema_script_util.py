@@ -363,7 +363,9 @@ def _get_schema_comparison(schema, schema_reload, file_path, file_format):
             "If the problem is in the schema file, "
             "the following comparison should indicate the approximate source of the issues:"
         )
-        error_text += "\n" + SchemaComparer(schema, schema_reload).compare_differences(title=title_prompt)
+        error_text += "\n" + SchemaComparer(schema, schema_reload).compare_differences(
+            title=title_prompt, use_markdown=False
+        )
         return [error_text]
 
     return []

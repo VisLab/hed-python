@@ -168,7 +168,6 @@ class ComplianceSummary:
         lines.append("  - Missing descriptions on entries")
         lines.append("  - SuggestedTag/RelatedTag existence (8.3+ schemas)")
         lines.append("  - Unit class must have at least one unit")
-        lines.append("  - DefaultUnits must be in the tag's own unit classes")
         lines.append("  - HedID uniqueness across entries")
         lines.append("  - HedID completeness (all entries should have IDs)")
         lines.append("  - Attributes must have exactly one range type")

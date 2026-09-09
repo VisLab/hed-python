@@ -5,7 +5,7 @@ import unittest
 import pandas as pd
 
 from hed import load_schema, load_schema_version
-from hed.schema import HedKey, HedSectionKey
+from hed.schema import HedKey, HedSectionKey, from_string
 from hed.schema.schema_comparer import SchemaComparer
 from hed.schema.schema_io.df_constants import EXTERNAL_ANNOTATION_KEY, PREFIXES_KEY, SOURCES_KEY
 from tests.schema import util_create_schemas
@@ -421,6 +421,59 @@ class TestCompareDataFrames(unittest.TestCase):
         self.assertIn("Column values differ", messages)
 
 
+class TestDerivableUnitRemoval(unittest.TestCase):
+    """HED 8.5.0 drops listed SI variants (uV) that stay valid through modifiers: Patch, not Major."""
+
+    @classmethod
+    def setUpClass(cls):
+        # Remove uV (still derivable as u + V) and mph (not derivable) from 8.4.0 by editing the mediawiki
+        # text and reloading, so the derived-unit maps are rebuilt for the smaller unit classes.
+        cls.schema1 = load_schema_version("8.4.0")
+        lines = cls.schema1.get_as_mediawiki_string().split("\n")
+        kept = [line for line in lines if not line.startswith("** uV ") and not line.startswith("** mph ")]
+        assert len(kept) == len(lines) - 2
+        cls.schema2 = from_string("\n".join(kept), schema_format=".mediawiki")
+        cls.changes = SchemaComparer(cls.schema1, cls.schema2).gather_schema_changes()
+
+    def _changes_for(self, section_key, tag):
+        return [item for item in self.changes[section_key] if item["tag"] == tag]
+
+    def test_derivable_unit_removal_is_patch_in_unit_class(self):
+        items = [
+            item
+            for item in self._changes_for(HedSectionKey.UnitClasses, "electricPotentialUnits")
+            if "uV" in item["change"]
+        ]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["change_type"], "Patch")
+        self.assertEqual(items[0]["change"], "Unit uV removed from electricPotentialUnits; still derivable as u + V")
+
+    def test_derivable_unit_removal_is_patch_in_units_section(self):
+        items = self._changes_for(HedSectionKey.Units, "uV")
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["change_type"], "Patch")
+        self.assertEqual(items[0]["change"], "Unit uV deleted from Units; still derivable as u + V")
+
+    def test_non_derivable_unit_removal_unchanged(self):
+        class_items = [
+            item for item in self._changes_for(HedSectionKey.UnitClasses, "speedUnits") if "mph" in item["change"]
+        ]
+        self.assertEqual(len(class_items), 1)
+        self.assertEqual(class_items[0]["change_type"], "Major")
+        self.assertEqual(class_items[0]["change"], "Unit mph removed from speedUnits")
+        unit_items = self._changes_for(HedSectionKey.Units, "mph")
+        self.assertEqual(len(unit_items), 1)
+        self.assertEqual(unit_items[0]["change_type"], "Unknown")
+        self.assertEqual(unit_items[0]["change"], "Tag mph deleted from Units")
+
+    def test_still_derivable_wording(self):
+        electric = self.schema2.unit_classes["electricPotentialUnits"]
+        self.assertEqual(SchemaComparer._still_derivable("uV", electric), "still derivable as u + V")
+        self.assertEqual(SchemaComparer._still_derivable("volts", electric), "still a form of volt")
+        self.assertIsNone(SchemaComparer._still_derivable("UV", electric))
+        self.assertIsNone(SchemaComparer._still_derivable("uV", None))
+
+
 class TestPrettyPrintChangeDict(unittest.TestCase):
     """Tests for pretty_print_change_dict and compare_differences formatting."""
 
@@ -437,8 +490,50 @@ class TestPrettyPrintChangeDict(unittest.TestCase):
     def test_markdown_uses_bold_headers_and_bullets(self):
         result = self.comp.pretty_print_change_dict(self.changes, use_markdown=True)
         self.assertIn("**", result)
-        self.assertIn(" - ", result)
+        self.assertIn("\n- ", result)
         self.assertNotIn("\t", result)
+
+    def test_markdown_layout_matches_prerelease_changes(self):
+        # hed-schemas prerelease/PRERELEASE_CHANGES.md: "## title", blank line, "**Section:**", blank line,
+        # "- " bullets, blank line before the next section, single trailing newline.
+        two_sections = {
+            HedSectionKey.Tags: [
+                {"change_type": "Minor", "change": "Item Consume added", "tag": "Consume"},
+                {"change_type": "Patch", "change": "Description of Event modified", "tag": "Event"},
+            ],
+            HedSectionKey.Units: [{"change_type": "Minor", "change": "Item ampere added", "tag": "ampere"}],
+        }
+        result = self.comp.pretty_print_change_dict(two_sections, title="Differences between A and B")
+        self.assertEqual(
+            result,
+            "## Differences between A and B\n\n**Tags:**\n\n- Consume (Minor): Item Consume added\n"
+            "- Event (Patch): Description of Event modified\n\n**Units:**\n\n- ampere (Minor): Item ampere added\n",
+        )
+        lines = result.split("\n")
+        self.assertEqual(lines[0], "## Differences between A and B")
+        self.assertEqual(lines[1], "")
+        self.assertTrue(result.endswith("\n"))
+        self.assertFalse(result.endswith("\n\n"))
+        headers = [index for index, line in enumerate(lines) if line.startswith("**") and line.endswith(":**")]
+        self.assertGreater(len(headers), 1)
+        for index in headers:
+            self.assertEqual(lines[index + 1], "", "blank line after section header")
+            self.assertTrue(lines[index + 2].startswith("- "), "bullets start right after the blank line")
+            if index > 0:
+                self.assertEqual(lines[index - 1], "", "blank line before section header")
+        for line in lines:
+            self.assertFalse(line.startswith(" - "), "no leading space before bullets")
+
+    def test_markdown_without_title_has_no_heading(self):
+        result = self.comp.pretty_print_change_dict(self.changes, title="")
+        self.assertTrue(result.startswith("**"))
+        self.assertNotIn("## ", result)
+
+    def test_plain_text_title_is_bare(self):
+        result = self.comp.pretty_print_change_dict(self.changes, title="Plain title", use_markdown=False)
+        self.assertTrue(result.startswith("Plain title\n\n"))
+        self.assertNotIn("## ", result)
+        self.assertNotIn("**", result)
 
     def test_plain_text_uses_tabs_no_bold(self):
         result = self.comp.pretty_print_change_dict(self.changes, use_markdown=False)
@@ -463,7 +558,9 @@ class TestPrettyPrintChangeDict(unittest.TestCase):
 
     def test_custom_title_appears_in_output(self):
         result = self.comp.compare_differences(title="My Special Title")
-        self.assertIn("My Special Title", result)
+        self.assertTrue(result.startswith("## My Special Title\n\n"))
+        plain = self.comp.compare_differences(title="My Special Title", use_markdown=False)
+        self.assertTrue(plain.startswith("My Special Title\n\n"))
 
     def test_auto_generated_title_uses_schema_names(self):
         schema1 = load_schema_version("score_1.0.0")
