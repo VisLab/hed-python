@@ -9,7 +9,6 @@ HED_0011606	$	TestlibUnit	unitPrefix, unitSymbol, conversionFactor=1.0, allowedC
 HED_0011607	euro	TestlibUnit		The official currency of a large subset of member countries of the European Union.	currencyUnits
 HED_0011608	point	TestlibUnit		An arbitrary unit of value, usually an integer indicating reward or penalty.	currencyUnits
 HED_0011609	V	TestlibUnit	SIUnit, unitSymbol, conversionFactor=0.000001		electricPotentialUnits
-HED_0011644	uV	TestlibUnit	conversionFactor=1.0	Added as a direct unit because it is the default unit.	electricPotentialUnits
 HED_0011610	volt	TestlibUnit	SIUnit, conversionFactor=0.000001		electricPotentialUnits
 HED_0011611	hertz	TestlibUnit	SIUnit, conversionFactor=1.0		frequencyUnits
 HED_0011612	Hz	TestlibUnit	SIUnit, unitSymbol, conversionFactor=1.0		frequencyUnits

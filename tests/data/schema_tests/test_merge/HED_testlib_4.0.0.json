@@ -19734,11 +19734,6 @@
       "conversionFactor": "0.000001",
       "hedId": "HED_0011609"
     },
-    "uV": {
-      "description": "Added as a direct unit because it is the default unit.",
-      "conversionFactor": "1.0",
-      "hedId": "HED_0011644"
-    },
     "volt": {
       "description": null,
       "SIUnit": true,
@@ -19992,7 +19987,6 @@
       "hedId": "HED_0011504",
       "units": [
         "V",
-        "uV",
         "volt"
       ],
       "default_units": "uV"

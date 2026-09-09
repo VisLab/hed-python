@@ -22,6 +22,15 @@ def schema_error_hed_duplicate_from_library(tag, duplicate_tag_list, section):
     )
 
 
+@hed_error(SchemaErrors.SCHEMA_REDUNDANT_UNIT, actual_code=SchemaErrors.SCHEMA_DUPLICATE_NODE)
+def schema_error_redundant_unit(unit_name, unit_class_name, derivations):
+    derivation_text = " or ".join(derivations)
+    return (
+        f"Unit '{unit_name}' in unit class '{unit_class_name}' must not be listed: it is already accepted as "
+        f"{derivation_text}. From HED 8.5.0 a unit class never lists a unit derivable from another unit of the class."
+    )
+
+
 @hed_error(SchemaErrors.SCHEMA_INVALID_SIBLING, actual_code=SchemaAttributeErrors.SCHEMA_ATTRIBUTE_INVALID)
 def schema_error_SCHEMA_INVALID_SIBLING(tag, sibling_tag_list):
     tag_join_delimiter = ", "

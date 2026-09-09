@@ -280,8 +280,9 @@ class TestCheckWarnings(unittest.TestCase):
         cls.clean_schema = clean
         # Deep-copy so the cached shared instance is not mutated.
         # Setting version to a future value triggers SCHEMA_PRERELEASE_VERSION_USED (warning only).
+        # It stays below 8.5.0: from 8.5.0 a unit class may not list uV beside V, and 8.3.0 does.
         cls.warning_schema = copy.deepcopy(clean)
-        cls.warning_schema.header_attributes["version"] = "999.0.0"
+        cls.warning_schema.header_attributes["version"] = "8.4.99"
 
     def test_clean_schema_check_for_warnings_false(self):
         """A fully compliant schema produces no issues with check_for_warnings=False."""

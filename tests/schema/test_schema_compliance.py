@@ -2,8 +2,15 @@ import os
 import unittest
 
 from hed import schema
+from hed.errors.error_reporter import ErrorHandler
+from hed.errors.error_types import ErrorSeverity
 from hed.schema.hed_schema_constants import HedKey, HedSectionKey
-from hed.schema.schema_validation.compliance import CONTENT_SECTIONS, DOMAIN_TO_SECTION, SECTION_TO_DOMAIN
+from hed.schema.schema_validation.compliance import (
+    CONTENT_SECTIONS,
+    DOMAIN_TO_SECTION,
+    SECTION_TO_DOMAIN,
+    SchemaValidator,
+)
 from hed.schema.schema_validation.compliance_summary import ComplianceSummary
 
 
@@ -43,7 +50,7 @@ class TestComplianceSummary(unittest.TestCase):
         _ = list(issues)
 
     def test_has_all_checks(self):
-        """Summary should contain all 8 top-level checks."""
+        """Summary should contain all 9 top-level checks."""
         issues = self.schema_84.check_compliance()
         summary = issues.compliance_summary
         check_names = [c["name"] for c in summary.check_results]
@@ -53,6 +60,7 @@ class TestComplianceSummary(unittest.TestCase):
             "invalid_characters",
             "attributes",
             "duplicate_names",
+            "redundant_units",
             "duplicate_hed_ids",
             "extras_columns",
             "annotation_attributes",
@@ -162,6 +170,74 @@ class TestComplianceSummary(unittest.TestCase):
         summary = issues.compliance_summary
         self.assertEqual(summary.schema_version, "8.4.0")
         self.assertTrue(summary.schema_name)
+
+
+class TestRedundantUnits(unittest.TestCase):
+    """check_redundant_units: a unit derivable from another unit of its class is SCHEMA_DUPLICATE_NODE (8.5.0+)."""
+
+    @classmethod
+    def setUpClass(cls):
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/schema_tests")
+        cls.fixture_path = os.path.join(data_dir, "redundant_unit_8.5.0.mediawiki")
+        cls.unpart_path = os.path.join(data_dir, "HED_testunpart_1.0.0.mediawiki")
+        cls.testlib_850_path = os.path.join(data_dir, "test_merge", "HED_testlib_4.0.0.mediawiki")
+        cls.schema_84 = schema.load_schema_version("8.4.0")
+
+    @staticmethod
+    def _validator(hed_schema):
+        return SchemaValidator(hed_schema, ErrorHandler())
+
+    def test_850_fixture_reports_redundant_unit(self):
+        """An 8.5.0 schema listing uV beside V reports uV once, as SCHEMA_DUPLICATE_NODE, naming u + V."""
+        hed_schema = schema.load_schema(self.fixture_path)
+        issues = hed_schema.check_compliance()
+        duplicate_issues = [i for i in issues if i["code"] == "SCHEMA_DUPLICATE_NODE"]
+        self.assertEqual(len(duplicate_issues), 1)
+        message = duplicate_issues[0]["message"]
+        self.assertIn("'uV'", message)
+        self.assertIn("'electricPotentialUnits'", message)
+        self.assertIn("modifier 'u' + unit 'V'", message)
+        self.assertEqual(duplicate_issues[0]["severity"], ErrorSeverity.ERROR)
+        # The prerelease warning is the only other issue; the clean timeUnits class is not flagged.
+        other_codes = [i["code"] for i in issues if i["code"] != "SCHEMA_DUPLICATE_NODE"]
+        self.assertEqual(other_codes, ["SCHEMA_PRERELEASE_VERSION_USED"])
+
+    def test_850_fixture_summary(self):
+        """The summary records the check and its one issue."""
+        issues = schema.load_schema(self.fixture_path).check_compliance()
+        results = {c["name"]: c for c in issues.compliance_summary.check_results}
+        self.assertIn("redundant_units", results)
+        self.assertEqual(results["redundant_units"]["issue_count"], 1)
+
+    def test_840_is_gated_out(self):
+        """8.4.0 lists uV beside V (derivable), but the rule starts at 8.5.0 so nothing is reported."""
+        volt_entry = self.schema_84.get_tag_entry("V", HedSectionKey.Units)
+        self.assertIn("uV", volt_entry.derivative_units)
+        sv = self._validator(self.schema_84)
+        self.assertFalse(sv._redundant_unit_check_applies())
+        self.assertEqual(sv.check_redundant_units(), [])
+
+    def test_gate_follows_partnered_standard_version(self):
+        """A library partnered with 8.5.0 is checked; one partnered with 8.4.0 is not."""
+        sv_850 = self._validator(schema.load_schema(self.testlib_850_path))
+        self.assertTrue(sv_850._redundant_unit_check_applies())
+        self.assertEqual(sv_850.check_redundant_units(), [])
+        testlib_840_path = os.path.join(os.path.dirname(self.fixture_path), "HED_testlib_2.1.0.xml")
+        sv_840 = self._validator(schema.load_schema(testlib_840_path))
+        self.assertFalse(sv_840._redundant_unit_check_applies())
+
+    def test_unpartnered_library_is_checked(self):
+        """An unpartnered library has no standard version, so the check always runs."""
+        sv = self._validator(schema.load_schema(self.unpart_path))
+        self.assertTrue(sv._redundant_unit_check_applies())
+        self.assertEqual(sv.check_redundant_units(), [])
+        # The same fixture re-headed as an unpartnered library reports its uV.
+        with open(self.fixture_path, encoding="utf-8") as fp:
+            text = fp.read().replace('HED version="8.5.0"', 'HED version="1.0.0" library="testredundant"', 1)
+        sv_redundant = self._validator(schema.from_string(text, ".mediawiki"))
+        self.assertTrue(sv_redundant._redundant_unit_check_applies())
+        issues = sv_redundant.check_redundant_units()
+        self.assertEqual([i["code"] for i in issues], ["SCHEMA_DUPLICATE_NODE"])
 
 
 class TestDomainRangeConstants(unittest.TestCase):
