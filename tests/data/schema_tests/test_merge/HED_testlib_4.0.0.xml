@@ -11718,18 +11718,6 @@
             </attribute>
          </unit>
          <unit>
-            <name>uV</name>
-            <description>Added as a direct unit because it is the default unit.</description>
-            <attribute>
-               <name>conversionFactor</name>
-               <value>1.0</value>
-            </attribute>
-            <attribute>
-               <name>hedId</name>
-               <value>HED_0011644</value>
-            </attribute>
-         </unit>
-         <unit>
             <name>volt</name>
             <attribute>
                <name>SIUnit</name>
