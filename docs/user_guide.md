@@ -341,6 +341,7 @@ The eight available checks are:
 | `check_invalid_characters()`          | Validates entry names and descriptions for illegal chars                   |
 | `check_attributes()`                  | Domain, range, and semantic validation of all attributes                   |
 | `check_duplicate_names()`             | Detects duplicate entry names within or across libraries                   |
+| `check_redundant_units()`             | Detects a unit derivable from another unit of its class (HED 8.5.0+)       |
 | `check_duplicate_hed_ids()`           | Detects `hedId` values assigned to more than one entry                     |
 | `check_extras_columns()`              | Checks required columns of the extras sections have non-empty values       |
 | `check_annotation_attribute_values()` | Checks annotations reference defined prefixes, sources, and external items |

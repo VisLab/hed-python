@@ -122,6 +122,8 @@ class SchemaErrors:
     SCHEMA_DUPLICATE_FROM_LIBRARY = "SCHEMA_LIBRARY_INVALID"
     SCHEMA_INVALID_SIBLING = "SCHEMA_INVALID_SIBLING"
     SCHEMA_INVALID_CHILD = "SCHEMA_INVALID_CHILD"
+    # Reported as SCHEMA_DUPLICATE_NODE: a unit derivable as modifier + another unit of its class (HED 8.5.0+)
+    SCHEMA_REDUNDANT_UNIT = "SCHEMA_REDUNDANT_UNIT"
 
 
 class SchemaWarnings:

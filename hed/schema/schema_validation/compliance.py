@@ -35,6 +35,7 @@ from hed.schema.schema_validation.hed_id_validator import HedIDValidator
 from hed.schema.schema_validation.validation_util import (
     get_allowed_characters_by_name,
     get_problem_indexes,
+    schema_version_for_library,
     validate_schema_description,
     validate_schema_tag,
     validate_schema_term,
@@ -79,6 +80,7 @@ def check_compliance(hed_schema, check_for_warnings=True, name=None, error_handl
     issues += validator.check_invalid_characters()
     issues += validator.check_attributes()
     issues += validator.check_duplicate_names()
+    issues += validator.check_redundant_units()
     issues += validator.check_duplicate_hed_ids()
     issues += validator.check_extras_columns()
     issues += validator.check_annotation_attribute_values()
@@ -367,6 +369,70 @@ class SchemaValidator:
                 )
         self.summary.record_issues(len(issues))
         return issues
+
+    def check_redundant_units(self):
+        """Check that no unit is derivable from another unit of the same unit class.
+
+        From HED 8.5.0 a unit class never lists a unit that is already accepted as an SI modifier plus another
+        unit of the class (or as another unit's plural): 8.4.0 listed ``uV`` beside ``V``, 8.5.0 does not.
+        Such a unit is reported as SCHEMA_DUPLICATE_NODE. The check applies to the standard schema and to
+        partnered libraries whose standard version is 8.5.0 or later, and to every unpartnered library
+        (which defines its own units and modifiers). Earlier standard versions legitimately carry ``uV``
+        and are not checked.
+        """
+        self.summary.start_check(
+            "redundant_units",
+            "Check that no unit is derivable from another unit of the same class (HED 8.5.0+).",
+        )
+        issues = []
+        unit_classes = self.hed_schema[HedSectionKey.UnitClasses]
+        if not self._redundant_unit_check_applies():
+            self.summary.record_section(HedSectionKey.UnitClasses, 0, len(unit_classes))
+            self.summary.record_issues(0)
+            return issues
+
+        self.summary.record_section(HedSectionKey.UnitClasses, len(unit_classes))
+        for unit_class_entry in unit_classes.values():
+            for unit_name, unit_entry in unit_class_entry.units.items():
+                derivations = [
+                    self._describe_derivation(unit_name, other_entry)
+                    for other_entry in unit_class_entry.units.values()
+                    if other_entry is not unit_entry and unit_name in other_entry.derivative_units
+                ]
+                if not derivations:
+                    continue
+                self.error_handler.push_error_context(ErrorContext.SCHEMA_SECTION, str(HedSectionKey.Units))
+                self.error_handler.push_error_context(ErrorContext.SCHEMA_TAG, unit_name)
+                issues += self.error_handler.format_error_with_context(
+                    SchemaErrors.SCHEMA_REDUNDANT_UNIT,
+                    unit_name,
+                    unit_class_name=unit_class_entry.name,
+                    derivations=derivations,
+                )
+                self.error_handler.pop_error_context()
+                self.error_handler.pop_error_context()
+        self.summary.record_issues(len(issues))
+        return issues
+
+    def _redundant_unit_check_applies(self):
+        """Return True when the redundant-unit rule applies to this schema.
+
+        The rule is keyed to the standard schema version: 8.5.0 or later for the standard schema and for
+        partnered libraries. An unpartnered library has no standard version and is always checked.
+        """
+        standard_version = schema_version_for_library(self.hed_schema, "")
+        if standard_version is None:
+            return True
+        return Version(standard_version) >= Version("8.5.0")
+
+    @staticmethod
+    def _describe_derivation(unit_name, other_entry):
+        """Say how *unit_name* is derived from *other_entry*, for the error message."""
+        for modifier in other_entry.unit_modifiers:
+            if unit_name.startswith(modifier.name) and unit_name[len(modifier.name) :] in other_entry.derivative_units:
+                base = unit_name[len(modifier.name) :]
+                return f"modifier '{modifier.name}' + unit '{base}'"
+        return f"a form of unit '{other_entry.name}'"
 
     def check_extras_columns(self):
         """Validate that all extras DataFrames have non-empty values in required columns.
