@@ -250,6 +250,56 @@ class IndividualHedTagsShort(TestHed):
         }
         self.validator_semantic(test_strings, expected_results, expected_issues, True)
 
+    def test_compound_units(self):
+        # Compound SI units take one SI symbol modifier per component (hed-tests units-invalid-compound-units).
+        test_strings = {
+            "unmodified": "Speed/3 m-per-s",
+            "modifierOnEachComponent": "Speed/3 cm-per-us",
+            "modifierOnNumerator": "Speed/3 km-per-s",
+            "modifierOnDenominator": "Speed/3 m-per-ms",
+            "modifierWithExponent": "Acceleration/2 mm-per-s^2",
+            "modifierOnDenominatorWithExponent": "Acceleration/2 m-per-ms^2",
+            "singleComponentWithExponent": "Volume/2 mm^3",
+            "twoModifiersOnOneComponent": "Speed/3 kmm-per-s",
+            "wrongCaseComponent": "Speed/3 m-per-S",
+            "misspelledComponent": "Speed/3 m-per-sec",
+            "wrongUnitClass": "Speed/3 m-per-s^2",
+            "exponentDetached": "Volume/2 mm3",
+        }
+        expected_results = {
+            "unmodified": True,
+            "modifierOnEachComponent": True,
+            "modifierOnNumerator": True,
+            "modifierOnDenominator": True,
+            "modifierWithExponent": True,
+            "modifierOnDenominatorWithExponent": True,
+            "singleComponentWithExponent": True,
+            "twoModifiersOnOneComponent": False,
+            "wrongCaseComponent": False,
+            "misspelledComponent": False,
+            "wrongUnitClass": False,
+            "exponentDetached": False,
+        }
+        legal_speed_units = ["m-per-s", "mph", "kph"]
+        legal_volume_units = ["m^3"]
+        expected_issues = {
+            "unmodified": [],
+            "modifierOnEachComponent": [],
+            "modifierOnNumerator": [],
+            "modifierOnDenominator": [],
+            "modifierWithExponent": [],
+            "modifierOnDenominatorWithExponent": [],
+            "singleComponentWithExponent": [],
+            "twoModifiersOnOneComponent": self.format_error(
+                ValidationErrors.UNITS_INVALID, tag=0, units=legal_speed_units
+            ),
+            "wrongCaseComponent": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_speed_units),
+            "misspelledComponent": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_speed_units),
+            "wrongUnitClass": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_speed_units),
+            "exponentDetached": self.format_error(ValidationErrors.UNITS_INVALID, tag=0, units=legal_volume_units),
+        }
+        self.validator_semantic(test_strings, expected_results, expected_issues, True)
+
     def test_extensions(self):
         test_strings = {
             "invalidExtension": "Experiment-control/Animal-agent",
