@@ -5,7 +5,7 @@ import argparse
 from hed.errors import HedFileError, get_printable_issue_string
 from hed.schema.hed_schema_io import from_dataframes, load_schema
 from hed.schema.schema_io import load_dataframes, save_dataframes
-from hed.schema.schema_io.hed_id_util import update_dataframes_from_schema
+from hed.schema.schema_io.hed_id_util import remove_retired_rows, update_dataframes_from_schema
 from hed.scripts.schema_script_util import add_extension, sort_base_schemas, validate_all_schemas
 
 
@@ -55,6 +55,11 @@ def convert_and_update(filenames, set_ids):
         if any(value is None for value in source_dataframes.values()):
             source_dataframes = schema.get_as_dataframes()
 
+        # A row for an element that has been removed from the schema is dropped when its hedId is
+        # retired in hed-schemas library_data.json (the permanent record of removed elements).
+        for removed in remove_retired_rows(source_dataframes, schema, schema.library):
+            print(format_removed_row(removed))
+
         try:
             result = update_dataframes_from_schema(
                 source_dataframes, schema, schema.library, assign_missing_ids=set_ids
@@ -76,6 +81,26 @@ def convert_and_update(filenames, set_ids):
     if not updated:
         print("Did not update any schemas")
     return 0
+
+
+def format_removed_row(removed):
+    """Return the one-line report for a spreadsheet row dropped by :func:`remove_retired_rows`.
+
+    Parameters:
+        removed (dict): One entry of the list returned by ``remove_retired_rows``.
+
+    Returns:
+        str: For example ``Removed retired row 'uV' (HED_0011644) from Unit: removed in 8.5.0; replacement V``.
+    """
+    text = f"Removed retired row '{removed['label']}' ({removed['hedId']}) from {removed['section']}"
+    details = []
+    if removed["removed_in"]:
+        details.append(f"removed in {removed['removed_in']}")
+    if removed["replacement"]:
+        details.append(f"replacement {removed['replacement']}")
+    if details:
+        text += ": " + "; ".join(details)
+    return text
 
 
 def main(arg_list=None):

@@ -7,7 +7,7 @@ import unittest
 
 from hed import load_schema, load_schema_version
 from hed.schema import HedKey, HedSectionKey
-from hed.scripts.hed_convert_schema import convert_and_update
+from hed.scripts.hed_convert_schema import convert_and_update, format_removed_row
 from hed.scripts.schema_script_util import add_extension
 
 
@@ -91,6 +91,45 @@ class TestConvertAndUpdate(unittest.TestCase):
 
         reloaded_entry = schema_reloaded.tags[test_tag_name]
         self.assertTrue(reloaded_entry.has_attribute(HedKey.HedID))
+
+    def test_schema_removing_retired_unit(self):
+        # Mimic the 8.5.0 edit: uV leaves the mediawiki while the TSV still carries its retired id
+        # HED_0011644. The converter drops that row, says so, and the formats agree afterwards.
+        schema = load_schema_version("8.4.0")
+        basename = os.path.join(self.base_path, "test_schema_retired")
+        schema.save_as_mediawiki(add_extension(basename, ".mediawiki"))
+        schema.save_as_dataframes(add_extension(basename, ".tsv"))
+
+        with open(add_extension(basename, ".mediawiki"), encoding="utf-8") as fp:
+            lines = fp.readlines()
+        uv_lines = [line for line in lines if line.startswith("** uV ")]
+        self.assertEqual(len(uv_lines), 1)
+        with open(add_extension(basename, ".mediawiki"), "w", encoding="utf-8") as fp:
+            fp.writelines(line for line in lines if line not in uv_lines)
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            result = convert_and_update([add_extension(basename, ".mediawiki")], set_ids=False)
+        self.assertEqual(result, 0)
+        self.assertIn(
+            "Removed retired row 'uV' (HED_0011644) from Unit: removed in 8.5.0; replacement V", output.getvalue()
+        )
+
+        schema_reloaded = load_schema(add_extension(basename, ".xml"))
+        self.assertNotIn("uV", schema_reloaded.units)
+        self.assertIn("V", schema_reloaded.units)
+        tsv_reloaded = load_schema(add_extension(basename, ".tsv"))
+        self.assertNotIn("uV", tsv_reloaded.units)
+        self.assertEqual(schema_reloaded, tsv_reloaded)
+
+    def test_format_removed_row(self):
+        full = {"section": "Unit", "label": "uV", "hedId": "HED_0011644", "removed_in": "8.5.0", "replacement": "V"}
+        self.assertEqual(
+            format_removed_row(full),
+            "Removed retired row 'uV' (HED_0011644) from Unit: removed in 8.5.0; replacement V",
+        )
+        bare = {"section": "Tag", "label": "Old-tag", "hedId": "HED_0012345", "removed_in": "", "replacement": ""}
+        self.assertEqual(format_removed_row(bare), "Removed retired row 'Old-tag' (HED_0012345) from Tag")
 
     @classmethod
     def tearDownClass(cls):

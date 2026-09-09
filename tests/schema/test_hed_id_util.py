@@ -11,6 +11,7 @@ from hed.schema.schema_io.hed_id_util import (
     _verify_hedid_matches,
     assign_hed_ids_section,
     get_all_ids,
+    remove_retired_rows,
     update_dataframes_from_schema,
 )
 
@@ -279,6 +280,62 @@ class TestRetiredIds(unittest.TestCase):
         month_rows = unit_df[unit_df[constants.name] == "month"]
         self.assertEqual(list(month_rows[constants.hed_id]), ["HED_0011645"])
         self.assertNotIn(f"HED_{self.RETIRED_UV:07d}", list(unit_df[constants.hed_id]))
+
+    @staticmethod
+    def _schema_without_uv():
+        schema = copy.deepcopy(hed_schema_global)
+        uv_entry = schema.units["uV"]
+        uv_key = next(key for key, entry in schema.units.all_names.items() if entry is uv_entry)
+        del schema.units.all_names[uv_key]
+        schema.units.all_entries.remove(uv_entry)
+        del uv_entry.unit_class_entry.units["uV"]
+        return schema
+
+    def test_remove_retired_rows_drops_removed_element(self):
+        # The 8.4.0 spreadsheet still carries uV (HED_0011644); the schema no longer has it (8.5.0).
+        schema = self._schema_without_uv()
+        dataframes = hed_schema_global.get_as_dataframes()
+        with self.assertRaises(HedFileError):
+            update_dataframes_from_schema(copy.deepcopy(dataframes), schema)
+
+        removed = remove_retired_rows(dataframes, schema)
+        self.assertEqual(len(removed), 1)
+        record = removed[0]
+        self.assertEqual(record["section"], constants.UNIT_KEY)
+        self.assertEqual(record["label"], "uV")
+        self.assertEqual(record["hedId"], f"HED_{self.RETIRED_UV:07d}")
+        self.assertEqual(record["removed_in"], "8.5.0")
+        self.assertEqual(record["replacement"], "V")
+        unit_df = dataframes[constants.UNIT_KEY]
+        self.assertNotIn("uV", list(unit_df[constants.name]))
+        self.assertEqual(list(unit_df.index), list(range(len(unit_df))))
+        # With the row gone the spreadsheet verifies clean.
+        updated = update_dataframes_from_schema(dataframes, schema)
+        self.assertNotIn("uV", list(updated[constants.UNIT_KEY][constants.name]))
+
+    def test_remove_retired_rows_keeps_element_still_in_schema(self):
+        # Reprocessing 8.4.0 itself: uV is still in the schema, so its row stays even though its id is retired.
+        dataframes = hed_schema_global.get_as_dataframes()
+        row_count = len(dataframes[constants.UNIT_KEY])
+        self.assertEqual(remove_retired_rows(dataframes, hed_schema_global), [])
+        self.assertEqual(len(dataframes[constants.UNIT_KEY]), row_count)
+        self.assertIn("uV", list(dataframes[constants.UNIT_KEY][constants.name]))
+
+    def test_remove_retired_rows_keeps_unretired_mismatch(self):
+        # A removed element whose id is not retired is a genuine mismatch: kept, and still reported.
+        schema = self._schema_without_uv()
+        dataframes = hed_schema_global.get_as_dataframes()
+        unit_df = dataframes[constants.UNIT_KEY]
+        unit_df.loc[unit_df[constants.name] == "uV", constants.hed_id] = "HED_0011640"
+        self.assertEqual(remove_retired_rows(dataframes, schema), [])
+        self.assertIn("uV", list(dataframes[constants.UNIT_KEY][constants.name]))
+        with self.assertRaises(HedFileError):
+            update_dataframes_from_schema(dataframes, schema)
+
+    def test_remove_retired_rows_library_without_registry(self):
+        # testlib is not registered, so nothing can be retired and nothing is removed.
+        dataframes = hed_schema_global.get_as_dataframes()
+        self.assertEqual(remove_retired_rows(dataframes, hed_schema_global, "testlib"), [])
 
 
 if __name__ == "__main__":
