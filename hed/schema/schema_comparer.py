@@ -290,47 +290,61 @@ class SchemaComparer:
         Parameters:
             change_dict (dict): Dictionary of changes as returned by gather_schema_changes.
                               Format: {section_key -> [{"change_type": str, "change": str, "tag": str}]}
-            title (str): Title for the change report. Default is "Schema changes".
-            use_markdown (bool): If True, use markdown formatting with bold headers (** **) and
-                                bullet point prefixes (" - "). If False, use plain text with
-                                tabs for indentation. Default is True.
+            title (str): Title for the change report. Default is "Schema changes". In markdown mode
+                         it becomes a level-two heading (``## title``); an empty title emits no heading.
+            use_markdown (bool): If True, use the PRERELEASE_CHANGES.md layout: ``## title``, a blank
+                                line, then per section a bold ``**Name:**`` header, a blank line,
+                                ``- `` bullets, and a blank line before the next section. If False,
+                                use plain text with a bare title, plain headers, and tab-indented
+                                lines. Default is True.
 
         Returns:
-            str: Formatted string representation of the changes. Sections are sorted by order
-                 in SECTION_ENTRY_NAMES, changes within each section sorted by severity
-                 (Major → Minor → Patch → Unknown). Empty if change_dict is empty.
+            str: Formatted string representation of the changes, ending in a single newline. Sections
+                 are in the order of SECTION_ENTRY_NAMES whatever the order of change_dict (keys not in
+                 SECTION_ENTRY_NAMES follow, in dict order); changes within each section keep the order
+                 given, which is by severity (Major -> Minor -> Patch -> Unknown) for gather_schema_changes
+                 output. Empty if change_dict is empty.
 
         Example:
             >>> changes = comparer.gather_schema_changes()
             >>> output = comparer.pretty_print_change_dict(
             ...     changes,
-            ...     title="HED 8.3.0 → 8.4.0 Changes",
+            ...     title="HED 8.3.0 -> 8.4.0 Changes",
             ...     use_markdown=True
             ... )
             >>> print(output)
             >>> # Can be written to file for changelog documentation
         """
+        if not change_dict:
+            return ""
         final_strings = []
-        line_prefix = " - " if use_markdown else "\t"
-        if change_dict:
-            final_strings.append(title)
-            final_strings.append("")  # add blank line
-            for section_key, section_dict in change_dict.items():
-                name = self.SECTION_ENTRY_NAMES_PLURAL.get(section_key, section_key)
-                line_endings = "**" if use_markdown else ""
-                final_strings.append(f"{line_endings}{name}:{line_endings}")
-                for item in section_dict:
-                    change, tag, change_type = item["change"], item["tag"], item["change_type"]
-                    final_strings.append(f"{line_prefix}{tag} ({change_type}): {change}")
+        line_prefix = "- " if use_markdown else "\t"
+        if title:
+            final_strings.append(f"## {title}" if use_markdown else title)
+            final_strings.append("")
+        known_keys = [key for key in self.SECTION_ENTRY_NAMES if key in change_dict]
+        extra_keys = [key for key in change_dict if key not in self.SECTION_ENTRY_NAMES]
+        for section_key in known_keys + extra_keys:
+            section_dict = change_dict[section_key]
+            name = self.SECTION_ENTRY_NAMES_PLURAL.get(section_key, section_key)
+            line_endings = "**" if use_markdown else ""
+            final_strings.append(f"{line_endings}{name}:{line_endings}")
+            if use_markdown:
                 final_strings.append("")
+            for item in section_dict:
+                change, tag, change_type = item["change"], item["tag"], item["change_type"]
+                final_strings.append(f"{line_prefix}{tag} ({change_type}): {change}")
+            final_strings.append("")
         return "\n".join(final_strings)
 
-    def compare_differences(self, attribute_filter=None, title=""):
+    def compare_differences(self, attribute_filter=None, title="", use_markdown=True):
         """Compare two schemas and return a formatted report of all differences.
 
         Convenience method that combines gather_schema_changes() and pretty_print_change_dict()
         to produce a complete, human-readable comparison report in one call. If no title is
-        provided, generates a descriptive title from the schema names.
+        provided, generates a descriptive title from the schema names. In markdown mode the result
+        is the layout of hed-schemas' ``prerelease/PRERELEASE_CHANGES.md`` and can be written to
+        that file as is.
 
         Parameters:
             attribute_filter (HedKey or None): If provided, only entries with this attribute are
@@ -338,22 +352,23 @@ class SchemaComparer:
                                               Default is None.
             title (str): Custom title for the report. If empty string (default), generates a
                         title like "Differences between SchemaName1 and SchemaName2".
+            use_markdown (bool): Passed to pretty_print_change_dict. Default is True.
 
         Returns:
-            str: Formatted markdown string describing all differences between the schemas.
-                 Suitable for printing, saving to changelog files, or displaying in documentation.
+            str: Formatted string describing all differences between the schemas. Empty if the
+                 schemas do not differ.
 
         Example:
             >>> report = comparer.compare_differences()
             >>> print(report)
             >>> # Or save to file
-            >>> with open("CHANGELOG.md", "a") as f:
+            >>> with open("PRERELEASE_CHANGES.md", "w") as f:
             ...     f.write(report)
         """
         changelog = self.gather_schema_changes(attribute_filter=attribute_filter)
         if not title:
             title = f"Differences between {self.schema1.name} and {self.schema2.name}"
-        return self.pretty_print_change_dict(changelog, title=title)
+        return self.pretty_print_change_dict(changelog, title=title, use_markdown=use_markdown)
 
     # Private helper methods
 
@@ -428,7 +443,8 @@ class SchemaComparer:
 
         Processes entries that exist in schema1 but have been removed from schema2.
         Categorizes removals as Major severity for Tags (breaking changes) and Unknown
-        severity for other section types.
+        severity for other section types, except a unit that schema2 still derives (for
+        example uV once V takes SI modifiers), which is a Patch.
 
         Parameters:
             change_dict (defaultdict): Change dictionary to append change entries to.
@@ -436,12 +452,45 @@ class SchemaComparer:
                            Format: {section_key -> {name -> entry, ...}}
         """
         for section_key, section in not_in_2.items():
-            for tag, _ in section.items():
+            for tag, entry in section.items():
                 type_name = self.SECTION_ENTRY_NAMES_PLURAL[section_key]
                 change_type = "Major" if section_key == HedSectionKey.Tags else "Unknown"
-                change_dict[section_key].append(
-                    {"change_type": change_type, "change": f"Tag {tag} deleted from {type_name}", "tag": tag}
-                )
+                change = f"Tag {tag} deleted from {type_name}"
+                if section_key == HedSectionKey.Units:
+                    derivation = self._still_derivable(tag, self._unit_class_in_schema2(entry))
+                    if derivation:
+                        change_type = "Patch"
+                        change = f"Unit {tag} deleted from {type_name}; {derivation}"
+                change_dict[section_key].append({"change_type": change_type, "change": change, "tag": tag})
+
+    def _unit_class_in_schema2(self, unit_entry):
+        """Return schema2's unit class entry with the same name as *unit_entry*'s class, or None."""
+        unit_class_entry = getattr(unit_entry, "unit_class_entry", None)
+        if unit_class_entry is None:
+            return None
+        return self.schema2.unit_classes.get(unit_class_entry.name)
+
+    @staticmethod
+    def _still_derivable(unit_name, unit_class_entry):
+        """Say how *unit_name* is still accepted by *unit_class_entry* (HED 8.5.0 drops listed SI variants).
+
+        Parameters:
+            unit_name (str): The unit that was removed from the listing.
+            unit_class_entry (UnitClassEntry or None): The unit class in the newer schema.
+
+        Returns:
+            str or None: ``"still derivable as u + V"`` when the name resolves through an SI modifier on a
+                listed unit, ``"still a form of volt"`` when it resolves without a modifier (a plural),
+                None when the newer schema does not accept the name at all.
+        """
+        if unit_class_entry is None:
+            return None
+        derived = unit_class_entry.get_derivative_unit_entry(unit_name)
+        if derived is None or derived.name == unit_name:
+            return None
+        if unit_name.endswith(derived.name):
+            return f"still derivable as {unit_name[: -len(derived.name)]} + {derived.name}"
+        return f"still a form of {derived.name}"
 
     @staticmethod
     def _add_added_items(change_dict, not_in_1):
@@ -512,12 +561,13 @@ class SchemaComparer:
             )
             change_dict[section_key].append({"change_type": change_type, "change": change_desc, "tag": misc_section})
 
-    @staticmethod
-    def _add_unit_classes_changes(change_dict, section_key, entry1, entry2):
+    @classmethod
+    def _add_unit_classes_changes(cls, change_dict, section_key, entry1, entry2):
         """Add changes in unit class definitions to the change dictionary.
 
         Compares the units contained in two unit class entries and records additions/removals.
-        Unit removals are Major severity (breaking), unit additions are Patch severity.
+        Unit removals are Major severity (breaking) unless the newer class still derives the unit
+        from a listed one (uV as u + V), which is a Patch; unit additions are Patch severity.
 
         Parameters:
             change_dict (defaultdict): Change dictionary to append to.
@@ -527,9 +577,12 @@ class SchemaComparer:
         """
         for unit in entry1.units:
             if unit not in entry2.units:
-                change_dict[section_key].append(
-                    {"change_type": "Major", "change": f"Unit {unit} removed from {entry1.name}", "tag": entry1.name}
-                )
+                derivation = cls._still_derivable(unit, entry2)
+                change_type = "Patch" if derivation else "Major"
+                change = f"Unit {unit} removed from {entry1.name}"
+                if derivation:
+                    change += f"; {derivation}"
+                change_dict[section_key].append({"change_type": change_type, "change": change, "tag": entry1.name})
         for unit in entry2.units:
             if unit not in entry1.units:
                 change_dict[section_key].append(

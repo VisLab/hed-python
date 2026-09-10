@@ -4,6 +4,7 @@ import unittest
 from hed import load_schema_version
 from hed.schema import HedSectionKey
 from hed.schema.schema_validation import attribute_validators as schema_attribute_validators
+from tests.schema import util_create_schemas
 
 
 class Test(unittest.TestCase):
@@ -108,6 +109,21 @@ class Test(unittest.TestCase):
         tag_entry = copy.deepcopy(tag_entry)
         tag_entry.attributes["defaultUnits"] = "bad_unit"
         self.assertTrue(schema_attribute_validators.unit_exists(self.hed_schema, tag_entry, attribute_name))
+
+    def test_unit_exists_derived_default(self):
+        # HED 8.5.0 lets defaultUnits be a derived form (mV of a listed V); an unlisted unit still fails.
+        schema = util_create_schemas.load_schema_derived_default()
+        unit_class = schema.unit_classes["testVoltageUnits"]
+        self.assertEqual(unit_class.attributes["defaultUnits"], "mV")
+        self.assertEqual(schema_attribute_validators.unit_exists(schema, unit_class, "defaultUnits"), [])
+
+        for bad_default in ("mX", "mv", "kmV", "millivolts"):
+            unit_class = copy.deepcopy(unit_class)
+            unit_class.attributes["defaultUnits"] = bad_default
+            issues = schema_attribute_validators.unit_exists(schema, unit_class, "defaultUnits")
+            self.assertEqual(len(issues), 1, bad_default)
+            self.assertEqual(issues[0]["code"], "SCHEMA_ATTRIBUTE_VALUE_INVALID", bad_default)
+            self.assertIn(f"invalid defaultUnit '{bad_default}'", issues[0]["message"], bad_default)
 
     def test_deprecatedFrom(self):
         tag_entry = self.hed_schema.tags["Event/Measurement-event"]
