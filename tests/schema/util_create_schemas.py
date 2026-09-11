@@ -76,3 +76,19 @@ def load_schema_derived_default():
         "** V <nowiki>{SIUnit, unitSymbol, conversionFactor=1.0}</nowiki>",
     )
     return _get_test_schema(test_nodes, unit_class_lines)
+
+
+def load_schema_any_units(extra_unit_class_lines=()):
+    """A Quantity tag whose # takes a unit from any unit class through the anyUnits pseudo class (HED 8.5.0).
+
+    Parameters:
+        extra_unit_class_lines (tuple[str]): Further Unit classes section lines, appended after anyUnits.
+    """
+    test_nodes = ["'''Quantity'''", " * # {takesValue, unitClass=anyUnits, valueClass=numericClass}"]
+    unit_class_lines = (
+        default_end_lines,
+        "'''Unit classes'''",
+        "* anyUnits <nowiki>[Pseudo unit class: a placeholder with unitClass=anyUnits accepts any unit.]</nowiki>",
+        *extra_unit_class_lines,
+    )
+    return _get_test_schema(test_nodes, unit_class_lines)

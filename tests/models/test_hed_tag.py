@@ -224,6 +224,31 @@ class TestSchemaUtilityFunctions(TestHedBase):
         duration_default = HedTag("Duration/3 s", hed_schema=self.hed_schema).default_unit
         self.assertEqual(duration_default.name, "s")
 
+    def test_any_units_placeholder(self):
+        # unitClass=anyUnits: the placeholder resolves a unit against every unit class of the schema.
+        schema = util_create_schemas.load_schema_any_units()
+        placeholder = schema.tags["Quantity/#"]
+        self.assertEqual(placeholder.attributes["unitClass"], "anyUnits")
+        self.assertNotIn("anyUnits", placeholder.unit_classes)
+        self.assertIn("timeUnits", placeholder.unit_classes)
+        self.assertIn("physicalLengthUnits", placeholder.unit_classes)
+        # Conversion goes to the default of the class the unit belongs to.
+        self.assertAlmostEqual(0.5, HedTag("Quantity/500 ms", hed_schema=schema).value_as_default_unit())
+        self.assertAlmostEqual(3000.0, HedTag("Quantity/3 km", hed_schema=schema).value_as_default_unit())
+        self.assertAlmostEqual(3.0, HedTag("Quantity/3 dB", hed_schema=schema).value_as_default_unit())
+        self.assertIsNotNone(HedTag("Quantity/3 cm-per-us", hed_schema=schema).value_as_default_unit())
+        # Listed wins over derived: dB is the decibel of intensityUnits, not d + B of memorySizeUnits.
+        _, _, entry = HedTag._get_tag_units_portion("3 dB", placeholder.unit_classes)
+        self.assertEqual(entry.unit_class_entry.name, "intensityUnits")
+        _, _, entry = HedTag._get_tag_units_portion("3 dam", placeholder.unit_classes)
+        self.assertEqual(entry.name, "m")
+        # No unit: a plain number with no default unit.
+        self.assertIsNone(HedTag("Quantity/7", hed_schema=schema).default_unit)
+        self.assertEqual(7.0, HedTag("Quantity/7", hed_schema=schema).value_as_default_unit())
+        # Invalid strings stay invalid.
+        for bad in ("Quantity/3 foo", "Quantity/3 MS", "Quantity/3 kmm-per-s", "Quantity/3 Feet"):
+            self.assertIsNone(HedTag(bad, hed_schema=schema).value_as_default_unit(), bad)
+
     def test_compound_unit_conversion_factors(self):
         # A compound SI unit takes one modifier per component; the exponent applies to the prefixed component
         # and denominator exponents are negative (spec item 4). Exact values here use only modifiers whose
