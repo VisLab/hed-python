@@ -460,7 +460,8 @@ class SchemaValidator:
         Specification 4.0.0: a placeholder with unitClass=anyUnits resolves a unit against every class, and a
         string that two classes derive (modifier + unit, plural) but neither lists would be ambiguous. A string
         listed in one class and derived in another is fine: the listed unit wins (dB is the decibel, not d + B).
-        Two classes listing the same unit is a duplicate name, reported by check_duplicate_names. Violations are
+        Two separate entries with the same name are a duplicate name, reported by check_duplicate_names; one entry
+        listed by two classes (possible through the JSON loader) is reported here. Violations are
         SCHEMA_DUPLICATE_NODE.
         """
         self.summary.start_check(
@@ -468,17 +469,34 @@ class SchemaValidator:
             "Check that no unit string is derived by two unit classes and listed by none.",
         )
         issues = []
-        listed = set()
+        listed_in = defaultdict(set)  # unit name -> classes listing it
         derived_in = defaultdict(set)  # form -> classes deriving it
         derived_from = defaultdict(set)  # form -> listed units it derives from
         unit_classes = self.hed_schema[HedSectionKey.UnitClasses]
         for unit_class_name, unit_class_entry in unit_classes.items():
             for unit_name, unit_entry in unit_class_entry.units.items():
-                listed.add(unit_name)
+                listed_in[unit_name].add(unit_class_name)
                 for form in unit_entry.derivative_units:
                     derived_in[form].add(unit_class_name)
                     derived_from[form].add(unit_name)
+        listed = set(listed_in)
         self.summary.record_section(HedSectionKey.UnitClasses, len(unit_classes))
+        # A unit listed by two classes through one shared entry (the JSON loader reuses entries by name) is
+        # not a duplicate name, so check_duplicate_names does not see it; report the listing itself here.
+        # Two separate entries with the same name are left to check_duplicate_names.
+        unit_entry_counts = defaultdict(int)
+        for unit_entry in self.hed_schema[HedSectionKey.Units].all_entries:
+            unit_entry_counts[unit_entry.name] += 1
+        for unit_name in sorted(listed_in):
+            class_names = listed_in[unit_name]
+            if len(class_names) > 1 and unit_entry_counts[unit_name] == 1:
+                self.error_handler.push_error_context(ErrorContext.SCHEMA_SECTION, str(HedSectionKey.Units))
+                self.error_handler.push_error_context(ErrorContext.SCHEMA_TAG, unit_name)
+                issues += self.error_handler.format_error_with_context(
+                    SchemaAttributeErrors.SCHEMA_UNIT_IN_TWO_CLASSES, unit_name, ", ".join(sorted(class_names))
+                )
+                self.error_handler.pop_error_context()
+                self.error_handler.pop_error_context()
         for form in sorted(derived_in):
             class_names = derived_in[form]
             # Forms of one unit listed under two classes are the same collision as the duplicate name itself,

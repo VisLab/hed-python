@@ -247,6 +247,29 @@ class Test(unittest.TestCase):
         self.assertEqual(len(messages), 1)
         self.assertIn("must not list units", messages[0])
 
+        with_default = util_create_schemas.load_schema_any_units(any_units_attributes="{defaultUnits=s}")
+        issues = with_default.check_compliance(error_handler=ErrorHandler(False))
+        messages = [issue["message"] for issue in issues if issue["code"] == "SCHEMA_ATTRIBUTE_INVALID"]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("must not have defaultUnits", messages[0])
+
+        # One unit entry shared by two classes (as the JSON loader can produce) is a listing collision that
+        # check_duplicate_names cannot see; the derived forms of that one unit are not reported a second time.
+        shared = util_create_schemas.load_schema_any_units(
+            (
+                "* qUnits <nowiki>{defaultUnits=Q}</nowiki>",
+                "** Q <nowiki>{SIUnit, unitSymbol, conversionFactor=1.0}</nowiki>",
+            )
+        )
+        shared.unit_classes["timeUnits"].units["Q"] = shared.unit_classes["qUnits"].units["Q"]
+        messages = [
+            issue["message"]
+            for issue in shared.check_compliance(error_handler=ErrorHandler(False))
+            if issue["code"] == "SCHEMA_DUPLICATE_NODE"
+        ]
+        self.assertEqual(len(messages), 1, messages)
+        self.assertIn("Unit 'Q' is listed by more than one unit class (qUnits, timeUnits)", messages[0])
+
         # A derived form shared by two classes and listed by neither: daQ is da + Q and also d + aQ.
         collision = util_create_schemas.load_schema_any_units(
             (
@@ -261,6 +284,29 @@ class Test(unittest.TestCase):
         self.assertTrue(any("'daQ'" in message for message in messages), messages)
         # Released 8.3.0: dB is listed in intensityUnits, so its derivation in memorySizeUnits is not an error.
         self.assertNotIn("SCHEMA_DUPLICATE_NODE", compliance_codes(load_schema_version("8.3.0")))
+
+    def test_unit_class_checks_skip_non_placeholders(self):
+        # unitClass on a non-placeholder is the existing SCHEMA_NON_PLACEHOLDER_HAS_CLASS warning, nothing more.
+        lines = [
+            'HED version="1.0.0" library="score" withStandard="8.5.0" unmerged="True"',
+            "'''Prologue'''",
+            "!# start schema",
+            "'''Not-a-placeholder''' {unitClass=timeUnits, unitClass=physicalLengthUnits}",
+            "!# end schema",
+            "'''Unit classes'''",
+            "'''Unit modifiers'''",
+            "'''Value classes'''",
+            "'''Schema attributes'''",
+            "'''Properties'''",
+            "'''Epilogue'''",
+            "!# end hed",
+        ]
+        schema = from_string("\n".join(lines), schema_format=".mediawiki")
+        issues = [issue for issue in schema.check_compliance() if issue["code"] == "SCHEMA_ATTRIBUTE_VALUE_INVALID"]
+        self.assertEqual(len(issues), 1, issues)
+        self.assertIn("Only placeholder nodes", issues[0]["message"])
+        for own_message in ("more than one unit class", "must have valueClass=numericClass"):
+            self.assertNotIn(own_message, issues[0]["message"])
 
     def test_deprecatedFrom(self):
         tag_entry = self.hed_schema.tags["Event/Measurement-event"]

@@ -141,6 +141,8 @@ def single_unit_class_check(hed_schema, tag_entry, attribute_name) -> list:
     Returns:
         list[dict]: One SCHEMA_ATTRIBUTE_VALUE_INVALID issue when several unit classes are listed, else empty.
     """
+    if not tag_entry.name.endswith("/#"):
+        return []  # tag_is_placeholder_check reports unitClass on a non-placeholder
     unit_classes = tag_entry.attributes.get(attribute_name, "")
     if isinstance(unit_classes, str) and len([item for item in unit_classes.split(",") if item.strip()]) > 1:
         return ErrorHandler.format_error(SchemaAttributeErrors.SCHEMA_UNIT_CLASS_MULTIPLE, tag_entry.name, unit_classes)
@@ -164,6 +166,8 @@ def unit_class_requires_numeric_check(hed_schema, tag_entry, attribute_name) -> 
     Returns:
         list[dict]: One SCHEMA_ATTRIBUTE_VALUE_INVALID issue when the value class is missing or not numericClass.
     """
+    if not tag_entry.name.endswith("/#"):
+        return []  # tag_is_placeholder_check reports unitClass on a non-placeholder
     standard_version = schema_version_for_library(hed_schema, "")
     if standard_version is None or Version(standard_version) < Version("8.5.0"):
         return []

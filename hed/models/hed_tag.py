@@ -6,7 +6,7 @@ import copy
 from typing import TYPE_CHECKING
 
 from hed.models.model_constants import DefTagNames
-from hed.schema.hed_schema_constants import HedKey
+from hed.schema.hed_schema_constants import ANY_UNITS_CLASS, HedKey
 
 if TYPE_CHECKING:
     from hed.models.hed_group import HedGroup
@@ -544,6 +544,9 @@ class HedTag:
             HED 8.4.0 still returns its own uV entry rather than V.
         """
         # todo: Make this cached
+        if self._schema_entry and self._schema_entry.attributes.get(HedKey.UnitClass) == ANY_UNITS_CLASS:
+            # unitClass=anyUnits: a value without a unit is valid but has no default unit (specification 4.0.0).
+            return None
         unit_classes = self.unit_classes.values()
         if len(unit_classes) == 1:
             first_unit_class_entry = list(unit_classes)[0]

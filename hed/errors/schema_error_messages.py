@@ -184,6 +184,11 @@ def schema_error_SCHEMA_ANY_UNITS_HAS_DEFAULT(unit_class, default_units):
     )
 
 
+@hed_error(SchemaAttributeErrors.SCHEMA_UNIT_IN_TWO_CLASSES, actual_code=SchemaErrors.SCHEMA_DUPLICATE_NODE)
+def schema_error_SCHEMA_UNIT_IN_TWO_CLASSES(unit_name, unit_classes):
+    return f"Unit '{unit_name}' is listed by more than one unit class ({unit_classes}); a unit belongs to one class."
+
+
 @hed_error(SchemaAttributeErrors.SCHEMA_UNIT_DERIVED_IN_TWO_CLASSES, actual_code=SchemaErrors.SCHEMA_DUPLICATE_NODE)
 def schema_error_SCHEMA_UNIT_DERIVED_IN_TWO_CLASSES(unit_string, unit_classes):
     return (
