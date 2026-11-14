@@ -34,11 +34,11 @@ def find_line_problems(text) -> tuple[list[str], list[tuple[int, int | None, int
         tuple: The first line's cells (list[str]) and the problems, each (file line counting the first line as 1,
         cells found or None for an empty line, cells expected), in line order.
     """
-    text = text.removeprefix("\ufeff")
+    # Only a CR directly before an LF is part of a line terminator; any other CR is cell content.
+    text = text.removeprefix("\ufeff").replace("\r\n", "\n")
     lines = text.split("\n")
     if lines and lines[-1] == "":
         lines.pop()  # The terminator of the last line, not an empty line.
-    lines = [line.removesuffix("\r") for line in lines]
     if not lines:
         return [], []
     header = lines[0].split("\t")
@@ -884,6 +884,9 @@ class BaseInput:
         header_cells = None
         if has_names:
             header_cells, self._line_problems = find_line_problems(text)
+            # pandas reads the same lines as find_line_problems: it ends a line at LF only, so a lone CR stays
+            # in its cell instead of starting a new row.
+            text = text.replace("\r\n", "\n")
         try:
             with warnings.catch_warnings():
                 # pandas warns when it drops the extra cells of a long row; that row is in line_problems.
@@ -893,6 +896,7 @@ class BaseInput:
                     delimiter="\t",
                     header=pandas_header,
                     skip_blank_lines=not has_names,
+                    lineterminator="\n" if has_names else None,
                     dtype=str,
                     keep_default_na=False,
                     na_values=("", "n/a"),

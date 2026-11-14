@@ -686,3 +686,10 @@ class TestTabularLines(unittest.TestCase):
     def test_row_numbers_are_file_lines(self):
         issues = self._validate("onset\tHED\n1.0\tRed\n2.0\tInvalidTagXYZ\n")
         self.assertEqual([issue[ErrorContext.ROW] for issue in issues], [3])
+
+    def test_lone_cr_does_not_end_a_row(self):
+        # The lone CR is inside the value of line 2, so pandas also puts the invalid tag on line 3.
+        issues = self._validate("HED\nRed\rBlue\nInvalidTagXYZ\n")
+        rows = [issue[ErrorContext.ROW] for issue in issues]
+        self.assertNotIn(4, rows)
+        self.assertEqual([issue[ErrorContext.ROW] for issue in issues if "InvalidTagXYZ" in issue["message"]], [3])

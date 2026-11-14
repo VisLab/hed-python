@@ -510,6 +510,8 @@ class TestLineProblems(unittest.TestCase):
         ("a\tb\r\n\r\n1\t2\r\n", ["a", "b"], [(2, None, 2)]),
         ("a\tb\n1\t2\r\n3\t4\n", ["a", "b"], []),  # mixed CRLF and LF
         ("a\tb\n1\t2\r3\t4\n", ["a", "b"], [(2, 3, 2)]),  # a lone CR is not a line end
+        ("a\r", ["a\r"], []),  # a lone CR at the end of the text is part of the last line
+        ("a\n\r", ["a"], []),  # a line of a lone CR is one cell, not an empty line
         ("\na\tb\n", [""], [(2, 2, 1)]),  # an empty first line is one blank name (c), not (e)
         ("a\n \n", ["a"], []),  # blanks-only line in a one-column table: a value, not (f)
         ("a\tb\n \n", ["a", "b"], [(2, 1, 2)]),  # blanks-only line in a two-column table
