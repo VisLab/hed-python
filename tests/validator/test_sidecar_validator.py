@@ -421,3 +421,9 @@ class TestRemovalSubstitution(unittest.TestCase):
         for sidecar, count in cases:
             with self.subTest(sidecar=sidecar):
                 self.assertEqual(self.codes(sidecar), ["TAG_EXPRESSION_REPEATED"] * count)
+
+    def test_repeated_reference_is_one_substitution(self):
+        # Every occurrence of a reference gets the same value, so 20 occurrences are 3 combinations, not 3**20.
+        groups = ", ".join(f"(Label/L{number}, {{color}})" for number in range(20))
+        sidecar = {"event_code": {"HED": {"face": groups}}, "color": self.COLOR}
+        self.assertEqual(self.codes(sidecar), [])

@@ -152,12 +152,18 @@ class SidecarValidator:
             - The removal is made by df_util.replace_ref with n/a, as in assembly.
             - A repeat found by several combinations is reported once.
         """
-        refs = COLUMN_REF_PATTERN.findall(hed_string)
+        # replace_ref replaces every occurrence of a reference at once, so each name is one substitution.
+        refs = list(dict.fromkeys(COLUMN_REF_PATTERN.findall(hed_string)))
         refs_strings = {data.column_name: list(data.get_hed_strings()) for data in sidecar}
+        filled = [refs_strings.get(ref, []) if ref != "HED" else [] for ref in refs]
         # None stands for the removal of the reference.
-        options = [[*refs_strings.get(ref, []), None] if ref != "HED" else [None] for ref in refs]
+        options = [[*values, None] for values in filled]
         # The combinations without a removal go first, so a repeat they find is reported with their string.
-        combinations = sorted(itertools.product(*options), key=lambda combination: None in combination)
+        # Both parts are generated lazily rather than sorted, so the product is never held in memory.
+        combinations = itertools.chain(
+            itertools.product(*filled),
+            (combination for combination in itertools.product(*options) if None in combination),
+        )
 
         issues = []
         reported_repeats = set()
